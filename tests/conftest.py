@@ -33,3 +33,34 @@ def foam_struts():
     return ma.phantoms.voronoi_foam(
         shape=(128, 128, 128), n_cells=10, strut=3.0, min_seed_gap=45.0, seed=3
     )
+
+
+@pytest.fixture(scope="session")
+def foam_cells():
+    """Mousse a nombreuses cellules, pour valider la segmentation.
+
+    Plus de cellules et plus petites que `foam_struts` : on veut des cellules
+    entierement incluses dans la boite, seules utilisables pour la morphometrie
+    (convention de la these).
+    """
+    return ma.phantoms.voronoi_foam(
+        shape=(128, 128, 128), n_cells=40, strut=3.0, min_seed_gap=20.0, seed=7
+    )
+
+
+@pytest.fixture(scope="session")
+def segmented(foam_cells):
+    """Chaine complete : distance -> marqueurs -> cellules."""
+    import numpy as np
+
+    fluid = ~foam_cells.solid
+    dist = ma.distance.distance_transform(fluid)
+    markers = ma.granulometry.cell_markers(fluid, distance=dist, fill_ratio=0.55)
+    cells = np.asarray(ma.segmentation.watershed_cells(dist, markers, mask=fluid))
+    return {
+        "vol": foam_cells,
+        "fluid": fluid,
+        "dist": dist,
+        "markers": np.asarray(markers),
+        "cells": cells,
+    }

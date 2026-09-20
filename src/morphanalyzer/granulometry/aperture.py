@@ -1,17 +1,36 @@
-"""Carte d'ouverture locale (epaisseur locale)."""
+"""Carte d'ouverture locale, boules maximales, marqueurs de cellules.
+
+Portage de `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAH*` et
+`Thread/Granulometry/utility.cpp::createBallsFromIdMap*`,
+`computeMaxBallsHistoFromIdMap`.
+"""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from scipy import ndimage as ndi
 
 from morphanalyzer.core import Volume
-from morphanalyzer.core.neighborhood import ball_structure
 from morphanalyzer.core.volume import as_array
 from morphanalyzer.distance.edt import distance_transform
 
-__all__ = ["aperture_map", "pore_size_distribution"]
+__all__ = [
+    "aperture_map",
+    "pore_size_distribution",
+    "maximal_balls",
+    "cell_markers",
+    "BallTable",
+]
+
+
+def _radii(dist: np.ndarray, radii, n_radii: int, min_radius: float) -> np.ndarray:
+    if radii is None:
+        dmax = float(dist.max())
+        radii = np.linspace(min_radius, dmax, num=n_radii)
+    return np.asarray(sorted({float(r) for r in np.ravel(radii) if r >= min_radius}, reverse=True))
 
 
 def aperture_map(
@@ -27,19 +46,13 @@ def aperture_map(
 
     Algorithme : pour chaque rayon `r` par ordre decroissant, les centres
     admissibles sont les voxels dont la distance au complementaire vaut au moins
-    `r` ; dilater cet ensemble par une boule de rayon `r` donne l'union des
-    boules de rayon `r` incluses dans `mask`. Le premier `r` qui couvre un voxel
-    est son ouverture. C'est la formulation classique de l'epaisseur locale, et
-    elle donne la meme carte que la file d'attente hierarchique d'iMorph
-    (`calc_Aperture_Map3DFAH`), a la discretisation des rayons pres.
+    `r` ; un voxel appartient a une boule de rayon `r` incluse dans `mask` si sa
+    distance au centre admissible le plus proche ne depasse pas `r`. Le premier
+    `r` qui couvre un voxel est son ouverture. Meme resultat que la file
+    d'attente hierarchique d'iMorph, a la discretisation des rayons pres.
 
     Parameters
     ----------
-    radii, n_radii, min_radius
-        Rayons testes. Par defaut `n_radii` valeurs reparties lineairement entre
-        `min_radius` et le maximum de la carte de distance. Plus il y en a, plus
-        la carte est fine et plus le calcul est long — chaque rayon coute une
-        dilatation.
     as_diameter
         Rend `2 * r` plutot que `r`. Le « diametre de pore » de la these.
 
@@ -47,9 +60,8 @@ def aperture_map(
     -----
     Le parametre `apertureErrorPrecision` d'iMorph, qui elaguait les boules
     incluses dans une plus grande et faisait gagner un facteur 10, **est
-    commente dans les sources 3.2** : la version livree est la force brute.
-    Ici c'est la discretisation des rayons qui joue ce role, avec le meme
-    compromis entre vitesse et finesse.
+    commente dans les sources 3.2**. Ici c'est la discretisation des rayons qui
+    joue ce role, avec le meme compromis entre vitesse et finesse.
     """
     m = as_array(mask).astype(bool, copy=False)
     if voxel_size is None:
@@ -64,24 +76,17 @@ def aperture_map(
     scale = float(voxel_size[0])
 
     dist = np.asarray(distance_transform(m, voxel_size=(1.0, 1.0, 1.0)))
-    dmax = float(dist.max())
-    if dmax <= 0:
-        out = np.zeros(m.shape, dtype=np.float32)
-        return mask.with_data(out, name="aperture") if isinstance(mask, Volume) else out
-
-    if radii is None:
-        radii = np.linspace(min_radius, dmax, num=n_radii)
-    radii = np.asarray(sorted({float(r) for r in radii if r >= min_radius}, reverse=True))
-
     aper = np.zeros(m.shape, dtype=np.float32)
-    for r in radii:
-        centres = dist >= r
-        if not centres.any():
-            continue
-        covered = ndi.binary_dilation(centres, structure=ball_structure(r))
-        covered &= m
-        np.maximum(aper, np.float32(r), out=aper, where=covered & (aper == 0))
-    # les voxels trop fins pour la plus petite boule gardent leur distance
+
+    if float(dist.max()) > 0:
+        for r in _radii(dist, radii, n_radii, min_radius):
+            centres = dist >= r
+            if not centres.any():
+                continue
+            covered = m & (aper == 0) & (ndi.distance_transform_edt(~centres) <= r)
+            if covered.any():
+                aper[covered] = np.float32(r)
+
     thin = m & (aper == 0)
     aper[thin] = dist[thin]
 
@@ -109,10 +114,237 @@ def pore_size_distribution(aperture, *, mask=None, bins: int = 30, as_diameter: 
     total = counts.sum()
     frac = counts / total if total else counts.astype(float)
     return pd.DataFrame(
-        {
-            "size": centres,
-            "count": counts,
-            "fraction": frac,
-            "cumulative": np.cumsum(frac),
-        }
+        {"size": centres, "count": counts, "fraction": frac, "cumulative": np.cumsum(frac)}
     )
+
+
+@dataclass(slots=True)
+class BallTable:
+    """Boules maximales extraites de l'image d'identifiants.
+
+    Attributes
+    ----------
+    table
+        `DataFrame` : `k`, `j`, `i` (centre), `radius`, `volume` (voxels
+        reellement attribues a cette boule), `theoretical_volume`,
+        `fill_ratio`, `touches_border`.
+    ids
+        L'image d'identifiants d'ou vient la table.
+    """
+
+    table: pd.DataFrame
+    ids: np.ndarray
+
+    def __len__(self) -> int:
+        return len(self.table)
+
+
+def _theoretical_volumes(radii: np.ndarray) -> np.ndarray:
+    """Nombre de voxels d'une boule discrete de chaque rayon (critere `d < r`).
+
+    On compte les voxels a distance **strictement** inferieure au rayon, comme
+    `computeMaxBallsHistoFromIdMap` d'iMorph, pour que le taux de remplissage
+    soit comparable a ses seuils.
+    """
+    out = np.empty(len(radii), dtype=np.int64)
+    cache: dict[float, int] = {}
+    for n, r in enumerate(radii):
+        key = float(r)
+        if key not in cache:
+            ri = int(np.ceil(r))
+            g = np.arange(-ri, ri + 1)
+            dz, dy, dx = np.meshgrid(g, g, g, indexing="ij")
+            cache[key] = int(((dz * dz + dy * dy + dx * dx) < r * r).sum())
+        out[n] = cache[key]
+    return out
+
+
+def _claim_territories(
+    mask: np.ndarray, dist: np.ndarray, centres: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Attribue a chaque centre son territoire, par rayon decroissant.
+
+    Reproduit la boucle d'iMorph : les voxels sont traites du plus eloigne du
+    bord au plus proche, et chaque boule peint son voisinage la ou aucune boule
+    plus grande n'est deja passee (`if imGranulo(v) < tailleOuverture`). Traiter
+    les centres par rayon decroissant rend la regle equivalente a « le premier
+    arrive garde », donc un seul passage suffit.
+
+    Rend `(ids, aper)` : l'indice aplati du centre proprietaire et le rayon de
+    la boule, `-1` et `0` hors de `mask`.
+    """
+    nz, ny, nx = mask.shape
+    ids = np.full(mask.shape, -1, dtype=np.int64)
+    aper = np.zeros(mask.shape, dtype=np.float32)
+
+    radii = dist[centres[:, 0], centres[:, 1], centres[:, 2]]
+    order = np.argsort(radii)[::-1]
+    for n in order:
+        ck, cj, ci = (int(x) for x in centres[n])
+        r = float(radii[n])
+        if r <= 0:
+            continue
+        ri = int(np.ceil(r))
+        k0, k1 = max(0, ck - ri), min(nz, ck + ri + 1)
+        j0, j1 = max(0, cj - ri), min(ny, cj + ri + 1)
+        i0, i1 = max(0, ci - ri), min(nx, ci + ri + 1)
+        zz = np.arange(k0, k1)[:, None, None] - ck
+        yy = np.arange(j0, j1)[None, :, None] - cj
+        xx = np.arange(i0, i1)[None, None, :] - ci
+        inside = (zz * zz + yy * yy + xx * xx) <= r * r
+        box_m = mask[k0:k1, j0:j1, i0:i1]
+        box_a = aper[k0:k1, j0:j1, i0:i1]
+        take = inside & box_m & (box_a < r)
+        if take.any():
+            box_a[take] = np.float32(r)
+            ids[k0:k1, j0:j1, i0:i1][take] = ck * ny * nx + cj * nx + ci
+    return ids, aper
+
+
+def maximal_balls(
+    mask,
+    *,
+    distance=None,
+    candidates: str = "maxima",
+    h: float = 0.5,
+    min_radius: float = 3.0,
+    voxel_size=None,
+) -> BallTable:
+    """Table des boules maximales, avec leur taux de remplissage.
+
+    Une boule est « quasi entiere » quand la fraction de son volume theorique
+    qui lui reste effectivement attribuee est elevee : les boules voisines plus
+    grandes lui ont pris peu de terrain, donc elle occupe bien une cavite
+    propre. C'est le critere d'iMorph pour reconnaitre un centre de cellule, et
+    il a le bon comportement : la these montre (fig. 3.3) que le nombre de
+    marqueurs est stable entre 60 et 80 % de remplissage, avec sous-segmentation
+    au-dela.
+
+    Parameters
+    ----------
+    candidates
+        `"maxima"` (defaut) : seuls les maxima regionaux de la carte de distance
+        sont candidats — ce sont les centres de boules maximales. `"all"` : tous
+        les voxels de `mask`, la force brute d'iMorph.
+
+        iMorph parcourait tous les voxels, mais elaguait ceux dont la boule est
+        circonscrite a une plus grande (`apertureErrorPrecision`, code commente
+        dans la version 3.2) ; la these observe que « les points restants se
+        situent pour la majorite sur le squelette des boules maximales »
+        (fig. 2.19). Partir des maxima donne donc le meme ensemble utile, sans
+        les 34 minutes de calcul que la these rapporte pour la force brute.
+    h
+        Profondeur des h-maxima retenus comme candidats. Plus petit = plus de
+        candidats, donc des territoires plus fragmentes.
+    min_radius
+        Rayon minimal retenu dans la table, en voxels. Defaut 3, la valeur
+        d'iMorph (`minimalDistToSolid`).
+    """
+    from skimage.morphology import h_maxima
+
+    m = as_array(mask).astype(bool, copy=False)
+    if voxel_size is None:
+        voxel_size = mask.voxel_size if isinstance(mask, Volume) else (1.0, 1.0, 1.0)
+    if np.isscalar(voxel_size):
+        voxel_size = (float(voxel_size),) * 3
+
+    if distance is None:
+        distance = distance_transform(m, voxel_size=(1.0, 1.0, 1.0))
+    dist = np.asarray(distance, dtype=np.float32)
+
+    if candidates == "maxima":
+        cand = (h_maxima(dist, float(h)) > 0) & m
+        if not cand.any():
+            cand = m
+    elif candidates == "all":
+        cand = m
+    else:
+        raise ValueError("candidates doit valoir 'maxima' ou 'all'")
+
+    ids, _aper = _claim_territories(m, dist, np.argwhere(cand))
+
+    flat_ids = ids[m]
+    uniq, volumes = np.unique(flat_ids[flat_ids >= 0], return_counts=True)
+    cols = ["k", "j", "i", "radius", "volume", "theoretical_volume", "fill_ratio", "touches_border"]
+    if len(uniq) == 0:
+        return BallTable(pd.DataFrame(columns=cols), ids)
+
+    kk, jj, ii = np.unravel_index(uniq, m.shape)
+    radius = dist[kk, jj, ii]
+    theo = _theoretical_volumes(radius)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        fill = np.where(theo > 0, volumes / theo, 0.0)
+
+    nz, ny, nx = m.shape
+    r_ceil = np.ceil(radius)
+    border = (
+        (kk - r_ceil < 0)
+        | (kk + r_ceil >= nz)
+        | (jj - r_ceil < 0)
+        | (jj + r_ceil >= ny)
+        | (ii - r_ceil < 0)
+        | (ii + r_ceil >= nx)
+    )
+
+    keep = radius >= min_radius
+    table = pd.DataFrame(
+        {
+            "k": kk[keep],
+            "j": jj[keep],
+            "i": ii[keep],
+            "radius": radius[keep],
+            "volume": volumes[keep],
+            "theoretical_volume": theo[keep],
+            "fill_ratio": fill[keep],
+            "touches_border": border[keep],
+        }
+    ).sort_values("radius", ascending=False, ignore_index=True)
+    table.attrs["voxel_size"] = tuple(voxel_size)
+    table.attrs["candidates"] = candidates
+    return BallTable(table, ids)
+
+
+def cell_markers(
+    mask,
+    *,
+    balls: BallTable | None = None,
+    fill_ratio: float = 0.65,
+    min_radius: float = 3.0,
+    keep_border_balls: bool = True,
+    return_table: bool = False,
+    **kwargs,
+):
+    """Marqueurs de cellules : les centres des boules quasi entieres.
+
+    Rend une image de labels (`int32`, `0` = pas un marqueur, `1..n`), un
+    marqueur par boule retenue. Ce sont les germes du watershed de la phase 4.
+
+    Parameters
+    ----------
+    fill_ratio
+        Taux de remplissage minimal. Defaut **0,65**, la valeur d'iMorph 3.2
+        (`thresholdVolumeBouleEntire = 35`, soit `> (100-35)/100`). La these
+        cite 75 % ; les deux sont dans le palier 60–80 % qu'elle identifie
+        comme stable (fig. 3.3). Monter au-dela de 0,8 sous-segmente.
+    keep_border_balls
+        Conserver les boules tronquees par le bord du volume. iMorph le fait par
+        defaut (`isUseBallsAtFace = true`) : sans elles les cellules de bord
+        n'ont pas de germe et fusionnent avec leurs voisines. Leur taux de
+        remplissage est mecaniquement plus faible, d'ou le traitement a part.
+    """
+    m = as_array(mask).astype(bool, copy=False)
+    if balls is None:
+        balls = maximal_balls(m, min_radius=min_radius, **kwargs)
+    t = balls.table
+    sel = (t["radius"] >= min_radius) & (t["fill_ratio"] > fill_ratio)
+    if keep_border_balls:
+        sel |= (t["radius"] >= min_radius) & t["touches_border"]
+    chosen = t[sel]
+
+    markers = np.zeros(m.shape, dtype=np.int32)
+    if len(chosen):
+        markers[chosen["k"].to_numpy(), chosen["j"].to_numpy(), chosen["i"].to_numpy()] = np.arange(
+            1, len(chosen) + 1, dtype=np.int32
+        )
+    out = mask.with_data(markers, name="markers") if isinstance(mask, Volume) else markers
+    return (out, chosen.reset_index(drop=True)) if return_table else out

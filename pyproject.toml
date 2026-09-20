@@ -38,6 +38,10 @@ rays    = ["trimesh>=4.0", "embreex>=2.17"]
 viz     = ["matplotlib>=3.7", "napari>=0.4.19", "pyvista>=0.43"]
 cli     = ["typer>=0.12", "rich>=13.0", "pyyaml>=6.0"]
 gpu     = ["cupy-cuda12x>=13.0"]
+# mkdocs est plafonne : l'equipe Material annonce que MkDocs 2.0 supprime le
+# systeme de greffons, sans chemin de migration. A revoir quand la situation
+# sera clarifiee.
+docs    = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10", "mkdocstrings[python]>=0.25"]
 dev     = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.5", "mypy>=1.8", "hypothesis>=6.90"]
 # tout sauf gpu (qui depend du materiel)
 all     = ["morphanalyzer[fast,fmm,bigdata,mesh,network,rays,viz,cli]"]

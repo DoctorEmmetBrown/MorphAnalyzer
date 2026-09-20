@@ -1,26 +1,35 @@
 """Segmentation des cellules et mesure des cols.
 
-La variante a porter est le watershed a priorites reelles (tas binaire) avec
-resolution des collisions par label majoritaire dans le voisinage deja traite :
-c'est elle qui supprime les artefacts en marches d'escalier de la version de
-Meyer quantifiee (these, fig. 3.4b vs 3.5b). skimage.segmentation.watershed ne
-couvre pas ce cas.
+Phase de portage : 4 (livree).
+Origine iMorph : `Thread/Granulometry/morphology.cpp::watershedBinarySearchTree`,
+`cellsExtractionThread.cpp`, `throatThread.cpp`,
+`Thread/Granulometry/morphometry.cpp`, `graph3D.cpp`.
 
-Phase de portage : 4.
-Origine iMorph : Thread/Granulometry/morphology.cpp : watershedBinarySearchTree ; cellsExtractionThread.cpp ; throatThread.cpp
+La chaine de la these, de bout en bout :
 
-Ce module n'est pas encore implemente. Les signatures ci-dessous fixent le
-contrat d'API : elles ne changeront pas sans raison, pour que les notebooks et
-scripts ecrits maintenant restent valides.
+    dist  = distance.distance_transform(fluide)
+    mk    = granulometry.cell_markers(fluide)        # boules quasi entieres
+    cells = segmentation.watershed_cells(dist, mk, mask=fluide)
+    morph = segmentation.cell_morphometry(cells)
+    cols  = segmentation.throats(cells)
+
+`watershed_cells` porte la variante **a priorites reelles** avec resolution des
+collisions par label majoritaire, qui n'existe pas en bibliotheque et qui est ce
+qui distingue iMorph d'un watershed de Meyer standard.
 """
 
-from __future__ import annotations
+from morphanalyzer.segmentation.cells import (
+    cell_morphometry,
+    connectivity,
+    pore_network,
+    throats,
+)
+from morphanalyzer.segmentation.watershed import watershed as watershed_cells
 
-__all__ = ["watershed_cells", "cell_morphometry", "throats", "connectivity", "pore_network"]
-
-
-def _todo(name: str):
-    raise NotImplementedError(
-        f"morphanalyzer.segmentation.{name} arrive en phase 4. "
-        "Voir docs/PORTING_MAP.md pour l'etat d'avancement."
-    )
+__all__ = [
+    "watershed_cells",
+    "cell_morphometry",
+    "throats",
+    "connectivity",
+    "pore_network",
+]

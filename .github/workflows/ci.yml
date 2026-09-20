@@ -55,3 +55,13 @@ jobs:
           print("porosite", ma.metrics.porosity(v))
           print("Sv", ma.metrics.specific_surface(v))
           PY
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Installer le projet et la doc
+        run: uv pip install --system -e ".[docs]"
+      - name: Construire la documentation en mode strict
+        run: mkdocs build --strict

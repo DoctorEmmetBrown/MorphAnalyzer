@@ -28,14 +28,14 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 |---|:--:|---|---|
 | `distance.distance_transform` | ✅ | `Thread/Granulometry/fastMarchManu.cpp::distFastMarching`, `calc_fdmapFast` | **`scipy.ndimage.distance_transform_edt` (exacte)**, pas le fast marching : la these mesure 2,77 voxels d'erreur max au 1er ordre (fig. 3.19). |
 | `distance.nearest_seed_propagation`, `geodesic_ball` | ✅ | idem (1er/2nd ordre, champ de vitesse, `ManuLabelFastMarching`, `distFastIterativeMarching`) | `pykonal` (2nd ordre) ou `scikit-fmm` ; propagation etiquetee en Numba. |
-| `granulometry.aperture_map`, `pore_size_distribution` | ✅ | `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAHWithBall` (1 819 l.) | `porespy.filters.local_thickness` pour la carte. **La tolerance `apertureErrorPrecision` est commentee dans 3.2** : la reactiver (×10 en vitesse, ~2 % d'erreur, tableaux 2.4–2.5). |
-| `granulometry.maximal_balls` / `cell_markers` | ⬜ P3 | `morphology.cpp` (image `id`), `utility.cpp::createBallsFromIdMap*`, `computeMaxBallsHistoFromIdMap` | **Sans equivalent** : l'image d'identifiants et le critere de boule quasi entiere (75 %) sont a ecrire (~400 l. Numba). |
-| `segmentation.watershed_cells` | ⬜ P4 | `morphology.cpp::watershedBinarySearchTree` + `mostRepresenatedlabel` | **Sans equivalent** : priorites reelles (tas binaire) + collisions par label majoritaire. `skimage.segmentation.watershed` quantifie le relief → artefacts en marches d'escalier (fig. 3.4b vs 3.5b). |
-| `segmentation.cell_morphometry` | ⬜ P4 | `Thread/Granulometry/morphometry.cpp` (2 198 l.) | `skimage.measure.regionprops` + `numpy.linalg.eigh`. **Supprimer `jacobi`/`eigsrt`/`svdcmp`** (Numerical Recipes, non redistribuable). |
-| `segmentation.throats` / `connectivity` / `pore_network` | ⬜ P4 | `throatThread.cpp` (1 055 l.), `graph3D.cpp` (2 313 l.) | A arbitrer contre `porespy.networks.snow2` + OpenPNM apres comparaison numerique. |
+| `granulometry.aperture_map`, `pore_size_distribution`, `maximal_balls`, `cell_markers` | ✅ | `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAHWithBall` (1 819 l.) | `porespy.filters.local_thickness` pour la carte. **La tolerance `apertureErrorPrecision` est commentee dans 3.2** : la reactiver (×10 en vitesse, ~2 % d'erreur, tableaux 2.4–2.5). |
+| — | — | `morphology.cpp` (image `id`), `utility.cpp::createBallsFromIdMap*`, `computeMaxBallsHistoFromIdMap` | **Sans equivalent** : l'image d'identifiants et le critere de boule quasi entiere (75 %) sont a ecrire (~400 l. Numba). |
+| `segmentation.watershed_cells` | ✅ | `morphology.cpp::watershedBinarySearchTree` + `mostRepresenatedlabel` | **Sans equivalent** : priorites reelles (tas binaire) + collisions par label majoritaire. `skimage.segmentation.watershed` quantifie le relief → artefacts en marches d'escalier (fig. 3.4b vs 3.5b). |
+| `segmentation.cell_morphometry` | ✅ | `Thread/Granulometry/morphometry.cpp` (2 198 l.) | `skimage.measure.regionprops` + `numpy.linalg.eigh`. **Supprimer `jacobi`/`eigsrt`/`svdcmp`** (Numerical Recipes, non redistribuable). |
+| `segmentation.throats` / `connectivity` / `pore_network` | ✅ | `throatThread.cpp` (1 055 l.), `graph3D.cpp` (2 313 l.) | A arbitrer contre `porespy.networks.snow2` + OpenPNM apres comparaison numerique. |
 | `skeleton.skeletonize`, `distance_ridge` | ✅ | `Thread/Skeleton/thin3D.cpp` (3 680 l., classe `Doht`) | `skimage.morphology.skeletonize` (Lee 1994, meme LUT d'Euler) ou `kimimaro`. 3 680 lignes → un appel. |
-| `skeleton.plateau_skeleton` | ⬜ P5 | `graph3D.cpp::Graph3D(waterInSolid, distInSolid, …)` | **Sans equivalent** (~200 l.) : voisinage 2×2×2, ≥ 4 labels ⇒ noeud, 3 labels ⇒ brin. |
-| `skeleton.medial_axis_flux` | ⬜ P5 | `thin3D.cpp::gradientX/Y/Z` + `get_flux` | `numpy.gradient` + divergence (~60 l.). |
+| `skeleton.plateau_skeleton`, `skeleton_graph` | ✅ | `graph3D.cpp::Graph3D(waterInSolid, distInSolid, …)` | **Sans equivalent** (~200 l.) : voisinage 2×2×2, ≥ 4 labels ⇒ noeud, 3 labels ⇒ brin. |
+| `skeleton.medial_axis_flux` | ⬜ P5b | `thin3D.cpp::gradientX/Y/Z` + `get_flux` | `numpy.gradient` + divergence (~60 l.). |
 | `shape.local_shape_tensor` / `classify_solid` / `strut_orientation` | ✅ | `Thread/ShapeClassif/skullSolidThread.cpp` (310 l.) + `shapeClassificationModule.cpp` (1 141 l.) | **Le cœur de valeur.** Covariance sur boule geodesique de rayon `expand_factor × ouverture locale`, `eigh`, a/b et b/c, seuil 1,6. Propagation au solide par `distance_transform_edt(return_indices=True)`. ~250 l. |
 | `tortuosity.*` | ⬜ P6 | `Thread/Tortuosity/` (7 622 l.), `fastMarchManu.cpp::tortuosityFastMarch*` | `scipy.sparse.csgraph.dijkstra` pour le graphe ; fast marching avec champ de vitesse pour Poiseuille ; parallelepipedes inscrits pour la directionnelle. |
 
@@ -48,7 +48,51 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 | `cortical.*` | ⬜ P9 | `Thread/Cortical/` (5 491 l.) | numpy en coordonnees cylindriques + `scipy.spatial.Voronoi`. L'essentiel du volume C++ etait du QCustomPlot. |
 | `viz.*` | ⬜ P11 | `Gui/` (35 081 l., dont 30 922 de tiers) | napari + matplotlib. **Jamais importe par le noyau** — verrouille par `tests/test_no_gui_imports.py`. |
 
-## Ce que la phase 5 a etabli (preuve de concept livree)
+## Ce que les phases 3, 4 et 5 ont etabli
+
+### Granulometrie et segmentation (phases 3 et 4)
+
+La chaine `distance -> boules maximales -> marqueurs -> watershed` est portee et
+validee contre la partition de Voronoi exacte : **IoU median 0,91** sur les
+cellules entierement incluses, 88 % au-dessus de 0,7. La degradation au-dela de
+80 % de remplissage est bien la sous-segmentation que la these annonce
+(fig. 3.3), et desactiver la conservation des boules de bord fait tomber l'IoU a
+0,55 — les cellules de bord perdent leur germe et avalent leurs voisines.
+
+Un ecart a signaler sur les **candidats** de la granulometrie : iMorph parcourait
+tous les voxels du fluide, en elaguant ceux dont la boule est circonscrite a une
+plus grande (code commente dans la version 3.2). On part des maxima regionaux de
+la carte de distance, ce que la these decrit comme l'ensemble effectivement
+retenu (« les points restants se situent pour la majorite sur le squelette des
+boules maximales », fig. 2.19). Verifie sur un cas simple : les deux approches
+donnent la meme boule maximale.
+
+La morphometrie retrouve le regime de la these : `a/b = 1,31` contre 1,302 pour
+la Recemat 1723 (tableau 3.1), `Dcol/Dpore = 0,59` contre 0,53 (fig. 3.12).
+
+### Squelette de Plateau (phase 5)
+
+Porte et valide : **ecart median 0,0 voxel** aux sommets de Voronoi exacts, 89 %
+des noeuds a moins de 2 voxels, tous portant exactement 4 cellules, degre de
+mode 3-4.
+
+**Une amelioration sur l'original.** iMorph applique la meme inversion de relief
+dans ses deux usages du watershed, donc propage les labels dans le solide en
+partant de la crete de la carte de distance. En partant de l'interface — chaque
+cellule croit depuis sa paroi a vitesse egale — les noeuds tombent nettement
+mieux :
+
+| sens d'inondation | ecart median | noeuds a <= 2 voxels |
+|---|---:|---:|
+| depuis la crete (iMorph) | 1,4 voxel | 62 % |
+| depuis l'interface | **0,0 voxel** | **89 %** |
+
+Sur un cas symetrique, une plaque de 4 voxels entre deux cellules se partage
+800/800 en partant de l'interface et 1600/0 en partant de la crete : l'algorithme
+est un parcours « meilleur d'abord », le premier front arrive sur la crete
+l'emporte.
+
+## Ce que la phase 5 a etabli pour le tenseur d'inertie
 
 Le tenseur de forme local est porte et valide. Trois resultats.
 

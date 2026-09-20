@@ -17,18 +17,23 @@ IMPLEMENTED = {
     "filters": ["threshold_otsu", "median", "erode", "keep_largest_component"],
     "metrics": ["porosity", "specific_surface", "representative_volume"],
     "distance": ["distance_transform", "nearest_seed_propagation", "geodesic_ball"],
-    "granulometry": ["aperture_map", "pore_size_distribution"],
-    "skeleton": ["skeletonize", "distance_ridge"],
+    "granulometry": ["aperture_map", "pore_size_distribution", "maximal_balls", "cell_markers"],
+    "skeleton": ["skeletonize", "distance_ridge", "plateau_skeleton", "skeleton_graph"],
     "shape": ["local_shape_tensor", "classify_solid", "elongation_ratios", "strut_orientation"],
+    "segmentation": [
+        "watershed_cells",
+        "cell_morphometry",
+        "throats",
+        "connectivity",
+        "pore_network",
+    ],
     "phantoms": ["sphere", "sphere_pack", "voronoi_foam", "sinusoidal_tube"],
 }
 
 #: Ce qui reste a porter : l'API est declaree, l'appel doit dire quelle phase.
 PLANNED = {
     "distance": ["geodesic_distance", "travel_time", "label_propagation"],
-    "granulometry": ["maximal_balls", "cell_markers"],
-    "skeleton": ["plateau_skeleton", "skeleton_graph", "prune", "medial_axis_flux"],
-    "segmentation": ["watershed_cells", "cell_morphometry", "throats", "connectivity"],
+    "skeleton": ["prune", "medial_axis_flux"],
     "tortuosity": ["point_tortuosity", "plane_tortuosity", "graph_tortuosity"],
     "mesh": ["surface_mesh", "save_mesh", "decimate"],
     "network": ["drainage", "invasion_percolation", "saturation_curve"],
