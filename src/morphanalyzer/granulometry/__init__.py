@@ -1,26 +1,31 @@
-"""Granulometrie : carte d'ouverture locale, boules maximales, marqueurs.
+"""Granulometrie : carte d'ouverture locale et distribution de tailles.
 
-Trois sorties, comme iMorph : la carte d'ouverture (rayon de la plus grande
-boule incluse contenant le voxel), l'image d'identifiants de boules (~ ouverture
-ultime) et l'histogramme des boules quasi entieres qui fournit les marqueurs de
-la segmentation. Seule la premiere a un equivalent direct
-(porespy.filters.local_thickness) ; les deux autres sont a ecrire.
+Phase de portage : 3 (partiellement livre).
+Origine iMorph : `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAH*`.
 
-Phase de portage : 3.
-Origine iMorph : Thread/Granulometry/morphology.cpp : calc_Aperture_Map3DFAH*
+La carte d'ouverture donne, en chaque voxel, le rayon de la plus grande boule
+incluse dans la phase qui contient ce voxel. C'est l'entree de la classification
+de forme (elle fixe le rayon de propagation) et de l'extraction des marqueurs.
 
-Ce module n'est pas encore implemente. Les signatures ci-dessous fixent le
-contrat d'API : elles ne changeront pas sans raison, pour que les notebooks et
-scripts ecrits maintenant restent valides.
+Restent a porter (phase 3) : l'image d'identifiants de boules (~ ouverture
+ultime) et l'histogramme des boules quasi entieres, qui n'ont pas d'equivalent
+en bibliotheque.
 """
 
-from __future__ import annotations
+from morphanalyzer.granulometry.aperture import aperture_map, pore_size_distribution
 
 __all__ = ["aperture_map", "pore_size_distribution", "maximal_balls", "cell_markers"]
 
 
-def _todo(name: str):
+def maximal_balls(*args, **kwargs):
     raise NotImplementedError(
-        f"morphanalyzer.granulometry.{name} arrive en phase 3. "
-        "Voir docs/PORTING_MAP.md pour l'etat d'avancement."
+        "morphanalyzer.granulometry.maximal_balls arrive en phase 3 "
+        "(image d'identifiants de boules)."
+    )
+
+
+def cell_markers(*args, **kwargs):
+    raise NotImplementedError(
+        "morphanalyzer.granulometry.cell_markers arrive en phase 3 "
+        "(boules remplies a >= 75 % de leur volume theorique)."
     )

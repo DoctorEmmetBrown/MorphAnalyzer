@@ -55,7 +55,8 @@ def voronoi_foam(
         Volume binaire (True = solide). `meta["truth"]` contient :
         `seeds`, `n_cells`, `cell_labels` (partition de Voronoi restreinte au
         fluide, labels 1..n), `cell_volumes`, `porosity`,
-        `node_condition` / `strut_condition` pour retrouver noeuds et brins.
+        `node_mask` et `strut_mask`, la classification de forme exacte deduite
+        de la loi de Plateau, et `node_fraction`.
     """
     rng = np.random.default_rng(seed)
     box = np.array(shape, dtype=float)
@@ -91,8 +92,13 @@ def voronoi_foam(
     ).reshape(-1, 3)
     d, idx = tree.query(coords, k=4, workers=-1)
 
-    d1, _d2, d3 = d[:, 0], d[:, 1], d[:, 2]
+    d1, _d2, d3, d4 = d[:, 0], d[:, 1], d[:, 2], d[:, 3]
     solid = (d3 - d1) < strut
+    # Loi de Plateau, exacte par construction : 3 germes equidistants = une
+    # arete de Voronoi donc un brin, 4 germes equidistants = un sommet donc un
+    # noeud. C'est la verite terrain de la classification de forme.
+    node_truth = solid & ((d4 - d1) < strut)
+    strut_truth = solid & ~node_truth
 
     # Cellules = regions de Voronoi restreintes au fluide. On etiquette par
     # *image* de germe et non par germe source : deux images d'un meme germe
@@ -105,6 +111,8 @@ def voronoi_foam(
     labels = np.where(raw >= 0, remap[np.maximum(raw, 0)], 0)
 
     solid = solid.reshape(shape)
+    node_truth = node_truth.reshape(shape)
+    strut_truth = strut_truth.reshape(shape)
     labels = labels.reshape(shape).astype(np.int32)
 
     # Aux coins ou trois regions se rejoignent, les egalites de distance
@@ -148,6 +156,9 @@ def voronoi_foam(
                 "porosity": 1.0 - float(solid.sum()) / nvox,
                 "strut": strut,
                 "n_specks_reassigned": int(n_specks),
+                "node_mask": node_truth,
+                "strut_mask": strut_truth,
+                "node_fraction": float(node_truth.sum()) / max(int(solid.sum()), 1),
                 "strut_condition": "d3 - d1 < strut  (3 germes equidistants -> arete)",
                 "node_condition": "d4 - d1 < strut  (4 germes equidistants -> sommet)",
                 "plateau_law_exact": True,

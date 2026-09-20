@@ -139,7 +139,7 @@ def run_from_config(config: dict | str | Path, volume) -> dict[str, Any]:
 
 def _register_builtin() -> None:
     """Enregistre les etapes des modules deja implementes."""
-    from morphanalyzer import filters, metrics
+    from morphanalyzer import distance, filters, granulometry, metrics, shape, skeleton
 
     register("threshold_otsu", filters.threshold_otsu)
     register("threshold_value", filters.threshold_value)
@@ -158,6 +158,11 @@ def _register_builtin() -> None:
     register("porosity_per_slice", metrics.porosity_per_slice)
     register("specific_surface", metrics.specific_surface)
     register("representative_volume", metrics.representative_volume)
+    register("distance_transform", distance.distance_transform)
+    register("aperture_map", granulometry.aperture_map)
+    register("skeletonize", skeleton.skeletonize)
+    register("distance_ridge", skeleton.distance_ridge)
+    register("shape_classification", shape.shape_classification)
 
 
 _register_builtin()

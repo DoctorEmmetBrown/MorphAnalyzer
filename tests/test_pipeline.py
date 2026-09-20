@@ -66,3 +66,26 @@ def test_pipeline_from_json_file(grey, tmp_path):
     )
     ctx = run_from_config(p, grey)
     assert 0.0 < ctx["phi"] < 1.0
+
+
+def test_shape_steps_are_registered():
+    steps = available_steps()
+    for expected in ("distance_transform", "aperture_map", "skeletonize", "shape_classification"):
+        assert expected in steps
+
+
+def test_full_shape_pipeline_from_dict(grey):
+    """Chaine complete binarisation -> classification, pilotee par des donnees."""
+    import numpy as np
+
+    cfg = {
+        "verbose": False,
+        "steps": [
+            "threshold_otsu",
+            {"porosity": {"out": "phi"}},
+            {"shape_classification": {"out": "classes", "expand_factor": 2.0}},
+        ],
+    }
+    ctx = run_from_config(cfg, grey)
+    assert 0.0 < ctx["phi"] < 1.0
+    assert set(np.unique(ctx["classes"])).issubset({0, 1, 2, 3})

@@ -43,10 +43,24 @@ CATEGORIES = [
 GENERATED = re.compile(r"^(moc_|qrc_|ui_)")
 
 THIRD_PARTY = {
-    "qcustomplot", "qrc_iMorph", "pictureflow", "qxtspanslider", "qxtpimpl",
-    "qxtspanslider_p", "graphicViewZoom", "nlmeans_lib", "maxflow", "graphKolmo",
-    "arcs", "block", "progmesh", "mersenneTwister", "triangulate",
-    "boxTriangleOverlap", "heapReductor", "listReductor",
+    "qcustomplot",
+    "qrc_iMorph",
+    "pictureflow",
+    "qxtspanslider",
+    "qxtpimpl",
+    "qxtspanslider_p",
+    "graphicViewZoom",
+    "nlmeans_lib",
+    "maxflow",
+    "graphKolmo",
+    "arcs",
+    "block",
+    "progmesh",
+    "mersenneTwister",
+    "triangulate",
+    "boxTriangleOverlap",
+    "heapReductor",
+    "listReductor",
 }
 
 DUP = re.compile(r"(\s*[-(]\s*(Copie|Copy|copie|copy)\s*\)?|\.bak|\.orig|-old|_old|-simon)")
@@ -129,8 +143,9 @@ def analyse(root: Path) -> dict:
             break
         for rel in new_paths:
             try:
-                included.update(re.findall(r'#\s*include\s*"([^"]+)"',
-                                           (root / rel).read_text(errors="ignore")))
+                included.update(
+                    re.findall(r'#\s*include\s*"([^"]+)"', (root / rel).read_text(errors="ignore"))
+                )
             except OSError:
                 pass
         built_paths |= new_paths
@@ -202,11 +217,19 @@ def to_markdown(inv: dict) -> str:
         if not c["n_files"]:
             continue
         L.append(
-            f"| {c['label']} | `{prefix}` | {c['n_files']} | {c['loc']:,} | {c['loc_third_party']:,} |".replace(",", " ")
+            f"| {c['label']} | `{prefix}` | {c['n_files']} | {c['loc']:,} | {c['loc_third_party']:,} |".replace(
+                ",", " "
+            )
         )
     total = sum(c["loc"] for c in inv["categories"].values())
     tp = sum(c["loc_third_party"] for c in inv["categories"].values())
-    L += ["", f"**Total compile : {total + tp:,} lignes**, dont {tp:,} de bibliotheques tierces.".replace(",", " "), ""]
+    L += [
+        "",
+        f"**Total compile : {total + tp:,} lignes**, dont {tp:,} de bibliotheques tierces.".replace(
+            ",", " "
+        ),
+        "",
+    ]
 
     if inv["shadowed"]:
         L += [

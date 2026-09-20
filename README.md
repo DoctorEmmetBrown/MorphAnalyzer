@@ -3,11 +3,14 @@
 Analyse morphologique 3D de milieux cellulaires et poreux — portage Python
 d'[iMorph](https://imorph.sourceforge.net/) (J. Vicente & E. Brun, IUSTI).
 
-> **Etat : phase 0.** Le socle est en place (types, E/S, filtres, porosite,
-> surface specifique, VER, fantomes, pipeline, CLI). Les modules de calcul
-> specifiques — granulometrie, segmentation des cellules, squelettes,
-> classification par tenseur d'inertie, tortuosites, reseau de pores, radiatif —
-> exposent leur API mais ne sont pas encore implementes. Voir
+> **Etat : phase 0 faite, coeur de la phase 5 livre.** Socle complet (types,
+> E/S, filtres, porosite, surface specifique, VER, fantomes, pipeline, CLI),
+> plus la carte de distance exacte, la granulometrie (carte d'ouverture),
+> la squelettisation et la **classification locale de forme par tenseur
+> d'inertie** — l'algorithme original d'iMorph, valide contre des fantomes a
+> verite terrain analytique. Restent la segmentation des cellules, les
+> tortuosites, le reseau de pores, le radiatif et le cortical : leur API est
+> declaree et leur appel dit a quelle phase elle arrive. Voir
 > [docs/PORTING_MAP.md](docs/PORTING_MAP.md).
 
 ## Principe : bibliotheque d'abord
@@ -51,6 +54,25 @@ morphanalyzer porosity tomo/ --voxel-size 7.46
 morphanalyzer run analyse.yaml tomo/
 morphanalyzer steps           # liste les etapes disponibles
 ```
+
+## Classification de forme
+
+L'algorithme original du logiciel : en chaque point du squelette, la matrice de
+covariance du nuage de voxels atteints dans une boule geodesique de rayon
+`expand_factor x ouverture locale`, dont les valeurs propres donnent les
+demi-axes `a >= b >= c` de l'ellipsoide equivalent. Les rapports discriminent
+noeud (a~b~c), brin (a>>b~c) et plaque (a~b>>c).
+
+```python
+st = ma.shape.local_shape_tensor(bin_)  # expand_factor=3, comme iMorph
+cls = ma.shape.classify_solid(st, bin_.solid)  # seuil a/b = 1,6, comme iMorph
+st.to_frame()  # une ligne par point de mesure
+```
+
+`python examples/shape_classification.py` reproduit la figure 3.35 de la these
+et valide le seuil 1,6 sur une mousse de Voronoi, ou la loi de Plateau est
+exacte par construction et fournit donc la verite terrain des brins et des
+noeuds.
 
 ## Installation
 

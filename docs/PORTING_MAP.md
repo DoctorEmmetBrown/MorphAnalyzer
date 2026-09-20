@@ -26,17 +26,17 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 
 | Module Python | Etat | Origine iMorph (compilee) | Strategie |
 |---|:--:|---|---|
-| `distance.distance_transform` | ⬜ P2 | `Thread/Granulometry/fastMarchManu.cpp::distFastMarching`, `calc_fdmapFast` | **`scipy.ndimage.distance_transform_edt` (exacte)**, pas le fast marching : la these mesure 2,77 voxels d'erreur max au 1er ordre (fig. 3.19). |
-| `distance.travel_time` / `geodesic_distance` / `label_propagation` | ⬜ P2 | idem (1er/2nd ordre, champ de vitesse, `ManuLabelFastMarching`, `distFastIterativeMarching`) | `pykonal` (2nd ordre) ou `scikit-fmm` ; propagation etiquetee en Numba. |
-| `granulometry.aperture_map` | ⬜ P3 | `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAHWithBall` (1 819 l.) | `porespy.filters.local_thickness` pour la carte. **La tolerance `apertureErrorPrecision` est commentee dans 3.2** : la reactiver (×10 en vitesse, ~2 % d'erreur, tableaux 2.4–2.5). |
+| `distance.distance_transform` | ✅ | `Thread/Granulometry/fastMarchManu.cpp::distFastMarching`, `calc_fdmapFast` | **`scipy.ndimage.distance_transform_edt` (exacte)**, pas le fast marching : la these mesure 2,77 voxels d'erreur max au 1er ordre (fig. 3.19). |
+| `distance.nearest_seed_propagation`, `geodesic_ball` | ✅ | idem (1er/2nd ordre, champ de vitesse, `ManuLabelFastMarching`, `distFastIterativeMarching`) | `pykonal` (2nd ordre) ou `scikit-fmm` ; propagation etiquetee en Numba. |
+| `granulometry.aperture_map`, `pore_size_distribution` | ✅ | `Thread/Granulometry/morphology.cpp::calc_Aperture_Map3DFAHWithBall` (1 819 l.) | `porespy.filters.local_thickness` pour la carte. **La tolerance `apertureErrorPrecision` est commentee dans 3.2** : la reactiver (×10 en vitesse, ~2 % d'erreur, tableaux 2.4–2.5). |
 | `granulometry.maximal_balls` / `cell_markers` | ⬜ P3 | `morphology.cpp` (image `id`), `utility.cpp::createBallsFromIdMap*`, `computeMaxBallsHistoFromIdMap` | **Sans equivalent** : l'image d'identifiants et le critere de boule quasi entiere (75 %) sont a ecrire (~400 l. Numba). |
 | `segmentation.watershed_cells` | ⬜ P4 | `morphology.cpp::watershedBinarySearchTree` + `mostRepresenatedlabel` | **Sans equivalent** : priorites reelles (tas binaire) + collisions par label majoritaire. `skimage.segmentation.watershed` quantifie le relief → artefacts en marches d'escalier (fig. 3.4b vs 3.5b). |
 | `segmentation.cell_morphometry` | ⬜ P4 | `Thread/Granulometry/morphometry.cpp` (2 198 l.) | `skimage.measure.regionprops` + `numpy.linalg.eigh`. **Supprimer `jacobi`/`eigsrt`/`svdcmp`** (Numerical Recipes, non redistribuable). |
 | `segmentation.throats` / `connectivity` / `pore_network` | ⬜ P4 | `throatThread.cpp` (1 055 l.), `graph3D.cpp` (2 313 l.) | A arbitrer contre `porespy.networks.snow2` + OpenPNM apres comparaison numerique. |
-| `skeleton.skeletonize` | ⬜ P5 | `Thread/Skeleton/thin3D.cpp` (3 680 l., classe `Doht`) | `skimage.morphology.skeletonize` (Lee 1994, meme LUT d'Euler) ou `kimimaro`. 3 680 lignes → un appel. |
+| `skeleton.skeletonize`, `distance_ridge` | ✅ | `Thread/Skeleton/thin3D.cpp` (3 680 l., classe `Doht`) | `skimage.morphology.skeletonize` (Lee 1994, meme LUT d'Euler) ou `kimimaro`. 3 680 lignes → un appel. |
 | `skeleton.plateau_skeleton` | ⬜ P5 | `graph3D.cpp::Graph3D(waterInSolid, distInSolid, …)` | **Sans equivalent** (~200 l.) : voisinage 2×2×2, ≥ 4 labels ⇒ noeud, 3 labels ⇒ brin. |
 | `skeleton.medial_axis_flux` | ⬜ P5 | `thin3D.cpp::gradientX/Y/Z` + `get_flux` | `numpy.gradient` + divergence (~60 l.). |
-| `shape.local_shape_tensor` / `classify_solid` | ⬜ P5 | `Thread/ShapeClassif/skullSolidThread.cpp` (310 l.) + `shapeClassificationModule.cpp` (1 141 l.) | **Le cœur de valeur.** Covariance sur boule geodesique de rayon `expand_factor × ouverture locale`, `eigh`, a/b et b/c, seuil 1,6. Propagation au solide par `distance_transform_edt(return_indices=True)`. ~250 l. |
+| `shape.local_shape_tensor` / `classify_solid` / `strut_orientation` | ✅ | `Thread/ShapeClassif/skullSolidThread.cpp` (310 l.) + `shapeClassificationModule.cpp` (1 141 l.) | **Le cœur de valeur.** Covariance sur boule geodesique de rayon `expand_factor × ouverture locale`, `eigh`, a/b et b/c, seuil 1,6. Propagation au solide par `distance_transform_edt(return_indices=True)`. ~250 l. |
 | `tortuosity.*` | ⬜ P6 | `Thread/Tortuosity/` (7 622 l.), `fastMarchManu.cpp::tortuosityFastMarch*` | `scipy.sparse.csgraph.dijkstra` pour le graphe ; fast marching avec champ de vitesse pour Poiseuille ; parallelepipedes inscrits pour la directionnelle. |
 
 ## Modules applicatifs — phases 7 a 9
@@ -47,6 +47,45 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 | `radiative.ray_trace` / `transmittance` / `reflectance` | ⬜ P8 | `iMorph_Rad/rayTracing.cpp` (1 054 l.), `rayTracingPileThread.cpp`, `utilityRayTracing.cpp` | `trimesh.ray` + `embreex`. Physique conservee (sphere integrante, reflexion speculaire, seuil a 1 %), moteur remplace par un BVH. |
 | `cortical.*` | ⬜ P9 | `Thread/Cortical/` (5 491 l.) | numpy en coordonnees cylindriques + `scipy.spatial.Voronoi`. L'essentiel du volume C++ etait du QCustomPlot. |
 | `viz.*` | ⬜ P11 | `Gui/` (35 081 l., dont 30 922 de tiers) | napari + matplotlib. **Jamais importe par le noyau** — verrouille par `tests/test_no_gui_imports.py`. |
+
+## Ce que la phase 5 a etabli (preuve de concept livree)
+
+Le tenseur de forme local est porte et valide. Trois resultats.
+
+**Les trois formes canoniques sortent justes** (`examples/shape_classification.py`) :
+
+| fantome | a/b | b/c | elevation | classe rendue |
+|---|---:|---:|---:|---|
+| cylindres ∥ z | 3,25 | 1,04 | 90° | brin |
+| plaque ⟂ z | 1,00 | 2,61 | 0° | plaque |
+| sphere | 1,00 | 1,00 | — | noeud |
+
+Controle analytique : pour un cylindre de rayon 4 avec une boule de rayon 12, la
+theorie donne `a = 2R/sqrt(3) = 13,86` ; mesure 13,29. Les demi-axes suivent
+exactement la taille du voxel (rapport 3,000 pour un voxel triple).
+
+**Le seuil 1,6 de la these est confirme, et son role eclairci.** Sur une mousse
+de Voronoi ou la loi de Plateau est exacte, `a/b` aux points de mesure vaut
+2,33 en mediane sur les brins contre 1,32 sur les noeuds (q3 des noeuds : 1,49 ;
+q1 des brins : 1,62 — le seuil tombe pile dans l'intervalle). A 1,6 :
+**precision 0,95**, rappel 0,76. Ce n'est donc pas le seuil qui maximise
+l'exactitude brute (1,2–1,4 fait mieux) mais celui qui garantit un echantillon
+de brins propre — le bon arbitrage quand on enchaine sur des mesures de
+diametres et d'orientations.
+
+**Deux ecarts assumes par rapport a iMorph**, documentes et testes : la boule
+geodesique passe par une dilatation contrainte intersectee avec la boule
+euclidienne au lieu d'un fast marching borne (`distance.geodesic_ball`), et les
+coordonnees sont mises a l'echelle physique avant la covariance, ce qui rend
+`a`, `b`, `c` justes sur des voxels anisotropes.
+
+**Un piege decouvert au passage.** `skimage.morphology.skeletonize(method="lee")`
+rend un squelette **vide** sur des objets elementaires — cube de 4³, sphere de
+rayon 12, plaque, cylindre isole — alors qu'il fonctionne sur un reseau de brins.
+Rembourrer le volume n'y change rien. L'amorce par defaut est donc `"auto"` :
+squelette, avec repli sur la crete de distance quand il ressort vide. Le
+comportement de scikit-image est fige par un test, pour qu'un changement de
+version se voie.
 
 ## 🚫 Ne pas porter — code present mais non compile
 
