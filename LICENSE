@@ -1,0 +1,26 @@
+PLACEHOLDER — decision de licence a trancher en phase 0.
+
+morphanalyzer est un portage d'iMorph, distribue sous licence CeCILL
+(cf. les en-tetes des sources iMorph : "Copyright Jerome Vicente & Emmanuel Brun ...
+This software is governed by the CeCILL license under French law").
+
+CeCILL v2.1 est compatible GPL et comporte une clause de reciprocite : une oeuvre
+derivee doit rester sous CeCILL (ou une licence compatible, GPL notamment).
+
+Consequence : la licence de morphanalyzer ne peut pas etre choisie librement.
+Deux options :
+  1. CeCILL v2.1 (ou GPL-3.0-or-later) — sur, aucune negociation necessaire.
+  2. Licence permissive (BSD-3 / MIT / Apache-2.0) — exige l'accord ecrit de tous
+     les titulaires de droits sur iMorph, au minimum Jerome Vicente (IUSTI /
+     Aix-Marseille Universite), et la verification du statut des contributions
+     tierces (Huangxiang pour thin3D.cpp, entre autres) ainsi que de l'employeur
+     au titre des droits sur les developpements realises dans le cadre du travail.
+
+A noter : les bibliotheques tierces embarquees dans iMorph ne sont PAS reprises
+dans ce portage (NL-means IPOL sous GPL, maxflow de Kolmogorov sous licence de
+recherche restrictive, Numerical Recipes non redistribuable, QCustomPlot sous GPL).
+Leur remplacement par scikit-image / PyMaxflow / numpy supprime d'autant de
+contraintes de licence.
+
+Tant que la decision n'est pas prise, considerer ce depot comme CeCILL v2.1.
+Texte de reference : https://cecill.info/licences/Licence_CeCILL_V2.1-fr.html

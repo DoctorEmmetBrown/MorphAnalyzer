@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+.DS_Store
+# donnees et sorties
+data/raw/
+data/scratch/
+out/
+*.zarr/
+*.npy
+*.raw
+# harnais oracle
+tools/oracle/build/
+tools/oracle/ref/
+_to_delete/
+.venv-test/

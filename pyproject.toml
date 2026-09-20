@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "morphanalyzer"
+version = "0.1.0.dev0"
+description = "Analyse morphologique 3D de milieux cellulaires et poreux — portage Python d'iMorph"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Emmanuel Brun" }]
+keywords = ["tomography", "porous media", "morphology", "image analysis", "foam", "bone"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Image Processing",
+  "Programming Language :: Python :: 3",
+]
+
+# Noyau : aucune dependance GUI, aucune dependance lourde optionnelle.
+# Tout doit s'importer et tourner dans un script ou un notebook sans ecran.
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "scikit-image>=0.21",
+  "tifffile>=2023.7.10",
+  "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+fast    = ["numba>=0.58", "connected-components-3d>=3.12", "edt>=2.3"]
+fmm     = ["scikit-fmm>=2023.4.2"]
+bigdata = ["zarr>=2.16", "dask[array]>=2023.10", "ome-zarr>=0.8"]
+mesh    = ["trimesh>=4.0", "meshio>=5.3"]
+network = ["porespy>=2.3", "openpnm>=3.4", "networkx>=3.1"]
+rays    = ["trimesh>=4.0", "embreex>=2.17"]
+viz     = ["matplotlib>=3.7", "napari>=0.4.19", "pyvista>=0.43"]
+cli     = ["typer>=0.12", "rich>=13.0", "pyyaml>=6.0"]
+gpu     = ["cupy-cuda12x>=13.0"]
+dev     = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.5", "mypy>=1.8", "hypothesis>=6.90"]
+# tout sauf gpu (qui depend du materiel)
+all     = ["morphanalyzer[fast,fmm,bigdata,mesh,network,rays,viz,cli]"]
+
+[project.scripts]
+morphanalyzer = "morphanalyzer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/morphanalyzer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+  "slow: test long (exclu par defaut en CI rapide)",
+  "needs_oracle: necessite le harnais C++ de reference",
+  "needs_viz: necessite napari / pyvista",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "NPY"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true

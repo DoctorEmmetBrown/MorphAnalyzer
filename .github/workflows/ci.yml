@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Installer le projet
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Tests
+        run: pytest -q --cov=morphanalyzer --cov-report=term-missing
+
+  # Verification separee et volontairement minimale : le noyau doit s'installer
+  # et tourner sans aucun extra. C'est la garantie « bibliotheque d'abord ».
+  core-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Installer le noyau seul (aucun extra)
+        run: uv pip install --system -e .
+      - name: Aucun module graphique ne doit etre importable
+        run: |
+          python - <<'PY'
+          import importlib, sys
+          for m in ("napari", "qtpy", "PyQt5", "PySide6", "matplotlib", "pyvista"):
+              assert importlib.util.find_spec(m) is None, f"{m} ne devrait pas etre installe"
+          PY
+      - name: Le noyau tourne quand meme
+        run: |
+          python - <<'PY'
+          import morphanalyzer as ma
+          v = ma.phantoms.sphere_pack(shape=(64,)*3, radius=8.0, n=6, seed=0)
+          print("porosite", ma.metrics.porosity(v))
+          print("Sv", ma.metrics.specific_surface(v))
+          PY
