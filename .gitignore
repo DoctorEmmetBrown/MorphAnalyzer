@@ -22,5 +22,4 @@ out/
 # harnais oracle
 tools/oracle/build/
 tools/oracle/ref/
-_to_delete/
 .venv-test/
