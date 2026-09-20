@@ -206,6 +206,13 @@ def directional_tortuosity(
     revele une sinusoide de periode 180 degres — et le fait que la tortuosite du
     solide et celle du fluide sont en opposition de phase.
 
+    Parameters
+    ----------
+    angles
+        Liste d'angles en degres, ou un **entier** : le nombre d'angles
+        regulierement repartis sur une demi-revolution. Par defaut, un angle
+        tous les 22,5 degres.
+
     Returns
     -------
     pandas.DataFrame
@@ -220,6 +227,10 @@ def directional_tortuosity(
         voxel_size = (float(voxel_size),) * 3
     if angles is None:
         angles = np.arange(0.0, 180.0, 22.5)
+    elif np.isscalar(angles) and float(angles) == int(angles) and int(angles) > 1:
+        angles = np.linspace(0.0, 180.0, int(angles), endpoint=False)
+    else:
+        angles = np.atleast_1d(np.asarray(angles, dtype=float))
 
     others = [a for a in (0, 1, 2) if a != axis]
     rows = []

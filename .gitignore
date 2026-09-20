@@ -24,3 +24,5 @@ tools/oracle/build/
 tools/oracle/ref/
 .venv-test/
 site/
+notebooks/*.html
+notebooks/_check/

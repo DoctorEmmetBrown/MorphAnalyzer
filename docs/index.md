@@ -72,6 +72,14 @@ Les [**cols déformables**](guide/drainage.md) de la percolation d'invasion
 élastique. Le rayon effectif d'un col admet une forme close, ce qui évite le
 balayage en pression de l'original.
 
+## Par ou commencer
+
+Le **[tutoriel](https://github.com/DoctorEmmetBrown/MorphAnalyzer/blob/main/notebooks/tutoriel.ipynb)**
+(`notebooks/tutoriel.ipynb`) parcourt la bibliotheque de bout en bout, en 15
+sections, et **execute la validation** : chaque etape affiche les chiffres qui la
+confrontent a une verite terrain analytique, figures a l'appui. Il se regenere
+par `python tools/build_tutorial.py`.
+
 ## Validation
 
 Pas de tomogramme de référence : la validation repose sur des

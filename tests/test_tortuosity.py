@@ -287,3 +287,15 @@ def test_graph_tortuosity_needs_both_layers(segmented):
     assert len(res["paths_length"]) == res["n_reached"]
     with pytest.raises(ValueError, match="margin"):
         ma.tortuosity.graph_tortuosity(sk.nodes, sk.edges, axis=0, margin=-1.0)
+
+
+def test_directional_tortuosity_accepts_a_count():
+    """Passer un entier doit vouloir dire « ce nombre d'angles », pas planter."""
+    m = np.zeros((24, 40, 40), dtype=bool)
+    m[:, 14:26, 14:26] = True
+    df = ma.tortuosity.directional_tortuosity(m, angles=6, axis=0)
+    assert len(df) == 6
+    assert df["angle"].iloc[0] == 0.0
+    assert df["angle"].max() < 180.0
+    one = ma.tortuosity.directional_tortuosity(m, angles=0.0, axis=0)
+    assert len(one) == 1

@@ -169,8 +169,13 @@ correctes. Les fantômes, eux, tranchent les cas où l'une des deux est fausse.
 
 ## Reproduire
 
+Le notebook `notebooks/tutoriel.ipynb` rejoue l'essentiel de ces mesures,
+figures comprises.
+
 ```bash
-pytest -q                                  # 219 tests
+pytest -q                                  # 221 tests
 python examples/shape_classification.py    # les chiffres de la classification
 python examples/full_chain.py              # la chaîne complète
+python examples/drainage_cortical.py       # tortuosité, drainage, os cortical
+python tools/build_tutorial.py             # régénère le notebook tutoriel
 ```
