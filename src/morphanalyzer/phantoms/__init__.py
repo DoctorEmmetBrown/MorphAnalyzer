@@ -23,6 +23,7 @@ from morphanalyzer.phantoms.basic import (
     sphere_pack,
     straight_tube,
 )
+from morphanalyzer.phantoms.bone import cortical_tube
 from morphanalyzer.phantoms.foam import voronoi_foam
 
 __all__ = [
@@ -33,4 +34,5 @@ __all__ = [
     "straight_tube",
     "sinusoidal_tube",
     "voronoi_foam",
+    "cortical_tube",
 ]

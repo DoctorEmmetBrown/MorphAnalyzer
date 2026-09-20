@@ -42,6 +42,10 @@ nav:
       - La chaîne complète: guide/chaine-complete.md
       - Classification de forme: guide/classification-forme.md
       - Squelette de Plateau: guide/plateau.md
+      - Tortuosité: guide/tortuosite.md
+      - Drainage et réseau: guide/drainage.md
+      - Os cortical: guide/cortical.md
+      - Maillage et export: guide/maillage.md
   - Validation: validation.md
   - Portage depuis iMorph:
       - Carte de portage: PORTING_MAP.md

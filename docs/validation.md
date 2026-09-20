@@ -24,6 +24,7 @@ vol.meta["truth"]  # tout ce qui est connu exactement
 | `straight_tube` | tortuosité exactement 1 |
 | `sinusoidal_tube` | tortuosité par longueur d'arc, à la précision machine |
 | `voronoi_foam` | **cellules, cols, brins et nœuds exacts** |
+| `cortical_tube` | canaux longitudinaux : porosité par secteur et par couronne exactes, nombre de canaux exact |
 
 ### La mousse de Voronoï
 
@@ -103,6 +104,57 @@ Le fantôme n'a aucune raison de reproduire ces valeurs exactement : ce sont deu
 matériaux différents. L'accord de régime indique en revanche que la mesure se
 comporte comme celle de la thèse.
 
+### Tortuosité
+
+Le milieu libre, avec `reference="free_front"`, donne **exactement 1,0000** : la
+normalisation par le même solveur dans une boîte vide annule le biais du premier
+ordre, qui vaut sinon +8,8 % (le carré de +3,8 % sur la diagonale 3D).
+
+Le tube sinusoïdal se compare à la tortuosité de sa ligne centrale, calculée par
+longueur d'arc à la précision machine : la mesure reste entre 1,02 et cette
+valeur, et croît avec l'amplitude.
+
+### Drainage
+
+L'effet « bouteille d'encre » est reproduit par les deux algorithmes : une
+chambre de rayon 11 derrière un col de rayon 3,6 n'est jamais envahie au-delà du
+rayon du col. Et Hilpert n'est jamais plus permissif que Hazlett, voxel par voxel
+et rayon par rayon.
+
+Sur un tube droit, le remplissage est uniforme et la courbe de rétention n'a
+qu'un point, à la saturation 1.
+
+### Percolation d'invasion
+
+Le rayon d'envahissement décroît le long de l'ordre d'invasion — l'escalier
+monotone que garantissait la boucle en pression d'iMorph. Le piégeage ne fait que
+retirer des cellules, jamais en ajouter, et aucune cellule n'est à la fois
+envahie et piégée. Des cols déformables font monter le rayon final : le milieu
+s'envahit à plus basse pression.
+
+### Os cortical
+
+Sur `cortical_tube`, la porosité totale rendue par `angular_profile` retombe
+**exactement** sur la valeur exacte du fantôme, et le secteur chargé est bien
+celui dont le poids a été augmenté. Le profil est constant en `z` sur un fantôme
+invariant en `z`, à la précision machine.
+
+La correction d'ellipse divise par plus de deux la dispersion des aires de
+secteurs sur une ellipse de rapport 60/25. Les angles « iso-volume » équilibrent
+les secteurs à moins de 2 %.
+
+La connectivité empilée compte exactement les canaux parallèles, et un pont
+introduit à la coupe 30 fait bien passer le compte de 2 à 1 à cette coupe-là.
+
+Le Voronoï 2D place la frontière entre deux canaux symétriques sur leur
+médiatrice, et étiquette exactement la matrice — ni plus, ni moins.
+
+### Maillage
+
+Sphère de rayon 20 : aire à **−0,08 %** de l'analytique en maillant le champ de
+distance signée, contre **+9,3 %** en maillant le masque binaire. Le maillage est
+invariant par changement d'échelle (aire ×9, volume ×27 pour un voxel triple).
+
 ## Le harnais « oracle »
 
 La seconde source de vérité terrain, prévue en phase 12 : compiler les fichiers de
@@ -118,7 +170,7 @@ correctes. Les fantômes, eux, tranchent les cas où l'une des deux est fausse.
 ## Reproduire
 
 ```bash
-pytest -q                                  # 144 tests
+pytest -q                                  # 219 tests
 python examples/shape_classification.py    # les chiffres de la classification
 python examples/full_chain.py              # la chaîne complète
 ```

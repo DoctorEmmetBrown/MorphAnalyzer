@@ -4,7 +4,7 @@ Une ligne par module Python : sa phase, son etat, les fichiers iMorph **reelleme
 compiles** dont il derive (verifies par `tools/inventory.py`, qui rejoue la
 resolution `VPATH` de qmake), et la strategie retenue.
 
-Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porter)
+Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porter) · ⛔ hors perimetre
 
 ## Socle — phase 0 et 1
 
@@ -20,7 +20,7 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 | `metrics.representative_volume` | ✅ | these §2.1.4 (pas de fichier dedie) | tirage de boites + statistiques pandas. |
 | `phantoms.*` | ✅ | — (nouveau) | Verite terrain analytique. `voronoi_foam` rend la loi de Plateau exacte par construction. |
 | `pipeline`, `cli` | ✅ | `CalcModule` + `*Module`/`*Thread`/`Param*Window` (~8 000 l. d'orchestration Qt) | Registre de fonctions + YAML/JSON. Sans ecran. |
-| `mesh.*` (export, decimation) | ⬜ P1 | `Thread/Mesh/mesh.cpp` (3 254 l.), `model.cpp` (1 398 l.) | `skimage` + `trimesh` (STL/OBJ/PLY, volume, aire, decimation quadrique). |
+| `mesh.*` (export, decimation) | ✅ | `Thread/Mesh/mesh.cpp` (3 254 l.), `model.cpp` (1 398 l.) | `skimage` + `trimesh` (STL/OBJ/PLY, volume, aire, decimation quadrique). |
 
 ## Noyau algorithmique — phases 2 a 6
 
@@ -37,15 +37,15 @@ Etats : ✅ fait · 🔨 en cours · ⬜ a faire · 🚫 abandonne (ne pas porte
 | `skeleton.plateau_skeleton`, `skeleton_graph` | ✅ | `graph3D.cpp::Graph3D(waterInSolid, distInSolid, …)` | **Sans equivalent** (~200 l.) : voisinage 2×2×2, ≥ 4 labels ⇒ noeud, 3 labels ⇒ brin. |
 | `skeleton.medial_axis_flux` | ⬜ P5b | `thin3D.cpp::gradientX/Y/Z` + `get_flux` | `numpy.gradient` + divergence (~60 l.). |
 | `shape.local_shape_tensor` / `classify_solid` / `strut_orientation` | ✅ | `Thread/ShapeClassif/skullSolidThread.cpp` (310 l.) + `shapeClassificationModule.cpp` (1 141 l.) | **Le cœur de valeur.** Covariance sur boule geodesique de rayon `expand_factor × ouverture locale`, `eigh`, a/b et b/c, seuil 1,6. Propagation au solide par `distance_transform_edt(return_indices=True)`. ~250 l. |
-| `tortuosity.*` | ⬜ P6 | `Thread/Tortuosity/` (7 622 l.), `fastMarchManu.cpp::tortuosityFastMarch*` | `scipy.sparse.csgraph.dijkstra` pour le graphe ; fast marching avec champ de vitesse pour Poiseuille ; parallelepipedes inscrits pour la directionnelle. |
+| `tortuosity.*` | ✅ | `Thread/Tortuosity/` (7 622 l.), `fastMarchManu.cpp::tortuosityFastMarch*` | `scipy.sparse.csgraph.dijkstra` pour le graphe ; fast marching avec champ de vitesse pour Poiseuille ; parallelepipedes inscrits pour la directionnelle. |
 
 ## Modules applicatifs — phases 7 a 9
 
 | Module Python | Etat | Origine iMorph (compilee) | Strategie |
 |---|:--:|---|---|
-| `network.drainage` / `invasion_percolation` | ⬜ P7 | `PoreNetworkModelling/fullMorphoThread.cpp` (432 l., Hazlett + Hilpert), `invasionIPThread.cpp` (787 l.) | `porespy.filters.porosimetry` (= Hazlett), `porespy.simulations.drainage`, `porespy.filters.ibip`, OpenPNM. Essentiellement une couche d'adaptation. |
-| `radiative.ray_trace` / `transmittance` / `reflectance` | ⬜ P8 | `iMorph_Rad/rayTracing.cpp` (1 054 l.), `rayTracingPileThread.cpp`, `utilityRayTracing.cpp` | `trimesh.ray` + `embreex`. Physique conservee (sphere integrante, reflexion speculaire, seuil a 1 %), moteur remplace par un BVH. |
-| `cortical.*` | ⬜ P9 | `Thread/Cortical/` (5 491 l.) | numpy en coordonnees cylindriques + `scipy.spatial.Voronoi`. L'essentiel du volume C++ etait du QCustomPlot. |
+| `network.drainage` / `invasion_percolation` | ✅ | `PoreNetworkModelling/fullMorphoThread.cpp` (432 l., Hazlett + Hilpert), `invasionIPThread.cpp` (787 l.) | Ecrit directement sur `scipy.ndimage` : Hazlett = composantes connexes de la carte d'ouverture seuillee touchant la face ; Hilpert = erosion/dilatation par EDT. La percolation d'invasion devient un tas binaire sur les rayons de cols, ce qui remplace la boucle en pression. `to_openpnm` pour la suite. |
+| `radiative.ray_trace` / `transmittance` / `reflectance` | ⛔ P8 | `iMorph_Rad/rayTracing.cpp` (1 054 l.), `rayTracingPileThread.cpp`, `utilityRayTracing.cpp` | **Hors perimetre a la demande d'Emmanuel Brun (septembre 2026).** L'API reste declaree et l'appel le dit. Si le besoin revient : `trimesh.ray` + `embreex`, physique conservee (sphere integrante, reflexion speculaire, seuil a 1 %), moteur remplace par un BVH. |
+| `cortical.*` | ✅ | `Thread/Cortical/` (5 491 l.) | numpy en coordonnees cylindriques. `buildAngularMapper` devient un `searchsorted`, la connectivite empilee une structure union-find, le Voronoi 2D un watershed par coupe. L'essentiel du volume C++ etait du QCustomPlot. |
 | `viz.*` | ⬜ P11 | `Gui/` (35 081 l., dont 30 922 de tiers) | napari + matplotlib. **Jamais importe par le noyau** — verrouille par `tests/test_no_gui_imports.py`. |
 
 ## Ce que les phases 3, 4 et 5 ont etabli
@@ -130,6 +130,100 @@ Rembourrer le volume n'y change rien. L'amorce par defaut est donc `"auto"` :
 squelette, avec repli sur la crete de distance quand il ressort vide. Le
 comportement de scikit-image est fige par un test, pour qu'un changement de
 version se voie.
+
+## Ce que les phases 1, 6, 7 et 9 ont etabli
+
+### Maillage (phase 1)
+
+`surface_mesh` s'appuie sur marching cubes et accepte un **champ de gris** en
+plus du masque. La difference est mesurable : sur une sphere de rayon 20, le
+maillage du masque binaire donne une aire superieure de 9,3 % a la valeur
+analytique, celui du champ de distance signee de 0,08 %. Les ecritures STL
+(binaire et ASCII), OBJ et PLY sont natives, sans dependance.
+
+Un point fixe par un test : marching cubes **biseaute** les aretes et les coins
+d'un cube aligne sur la grille. Le volume reste juste a 1 % pres, l'aire non.
+
+### Tortuosite (phase 6)
+
+Le fast marching du premier ordre de Sethian est porte en Numba. Une erreur
+subtile a couter cher : la cle du tas doit etre la valeur **arrondie en
+float32** effectivement stockee dans la carte, faute de quoi des entrees valides
+sont rejetees comme perimees et la diagonale 3D ressort a 72,08 au lieu de
+51,96, soit +39 %.
+
+Le biais residuel du premier ordre (+2,7 % sur une diagonale 2D, +3,8 % en 3D)
+se propage au carre dans la tortuosite de Carman `tau = (L_min / d)^2`, d'ou
++8,8 %. D'ou `reference="free_front"` : on divise par le temps de parcours du
+**meme** solveur dans une boite vide de meme geometrie. Le milieu libre donne
+alors exactement 1,0000.
+
+La tortuosite de Poiseuille — champ de vitesse `1 - (1 - d/R)^2` — est comparee
+a la tortuosite geometrique sur les **memes extremites**, sans quoi la
+comparaison n'a pas de sens : 1,448 contre 1,403, avec une distance moyenne a la
+paroi de 15,00 contre 5,17. Le chemin « hydraulique » est plus long mais reste
+au centre, ce qui est bien le comportement attendu.
+
+La variante `variant="imorph"` du champ de vitesse (`1 - d^2/R^2`) est conservee
+dans `poiseuille_speed` mais **refusee** par `poiseuille_tortuosity` : elle
+s'annule au centre du conduit au lieu d'y etre maximale, ce qui fait degenerer
+le resultat de facon dependante des donnees (tau = 0,44 sur une mousse, 1,02 sur
+une autre).
+
+### Reseau et drainage (phase 7)
+
+Les deux algorithmes d'iMorph sont portes et leur difference est explicitee :
+Hazlett n'exige qu'un chemin de voxels d'ouverture suffisante, Hilpert exige en
+plus que le **centre** de la boule ait un chemin continu. Hilpert est donc
+toujours plus restrictif ou egal — un test le verifie sur un fantome en
+bouteille d'encre, ou tous deux reproduisent le blindage de la chambre par le
+col.
+
+Deux ecarts assumes. iMorph initialisait les voxels poreux non envahis a `1.0`
+au lieu de `0`, ce qui les faisait compter comme envahis au rayon 1 dans la
+courbe de retention : corrige. Et la conversion en pression capillaire d'iMorph
+s'ecrit `Pc = 4 sigma / r` avec `r` la colonne intitulee « radius ball », soit
+**deux fois** la loi de Young-Laplace — cela revient a lire l'ouverture comme un
+diametre. Le defaut est desormais `Pc = 2 sigma cos(theta) / r` ; la convention
+historique reste accessible par `convention="imorph"`.
+
+La percolation d'invasion est reformulee en tas binaire sur les rayons de cols,
+ce qui donne exactement le meme ordre d'invasion que la boucle
+`r_current -= 0.2` d'iMorph sans balayer une grille de pressions. Le rayon
+enregistre est le minimum courant, ce qui reproduit l'escalier decroissant.
+
+Le « taux de deformation » des cols — une trouvaille d'iMorph pour les milieux
+elastiques — admet une forme close. Le facteur multiplicatif varie lineairement
+avec la pression, donc en `k(r) = A/r + B` ; un col de rayon `R` passe des que
+`k(r) R >= r`, d'ou un rayon effectif
+
+    r_eff = (B R + sqrt(B^2 R^2 + 4 A R)) / 2
+
+calculable une fois pour toutes. Ni la tension superficielle ni la taille de
+voxel n'y interviennent : elles se simplifient.
+
+### Os cortical (phase 9)
+
+`buildAngularMapper` se ramene a un `searchsorted` : le numero de secteur d'un
+pixel est l'indice de la derniere borne strictement inferieure a son angle,
+borne dans `[0, n-1]`. La convention d'angle d'iMorph est conservee telle
+quelle, `theta = atan2(y0 - j, i - x0)` — `x` a droite, `y` vers le **haut**,
+malgre l'axe des lignes qui descend.
+
+Les 853 lignes de connectivite empilee deviennent une structure union-find : on
+etiquette chaque coupe en 2D, on unit avec la coupe precedente dans un voisinage
+3x3, et les « ponts » d'iMorph — le traitement explicite des fusions multiples,
+avec intersection et union de `std::set` — disparaissent, la structure les
+gerant par construction.
+
+Le Voronoi 2D inonde la carte de distance **depuis les germes de bord** plutot
+que le relief inverse `max(d) - d` d'iMorph, pour la meme raison que le
+squelette de Plateau ci-dessus.
+
+Un fantome d'os cortical (`phantoms.cortical_tube`) donne la verite terrain :
+tube epais perce de canaux paralleles, avec anisotropie angulaire reglable. La
+porosite totale rendue par `angular_profile` retombe exactement sur la valeur
+exacte, et le secteur charge est bien celui qu'on a charge.
 
 ## 🚫 Ne pas porter — code present mais non compile
 

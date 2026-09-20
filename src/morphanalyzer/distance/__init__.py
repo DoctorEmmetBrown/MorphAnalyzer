@@ -1,14 +1,13 @@
-"""Cartes de distance et propagation.
+"""Cartes de distance, propagation de front, geodesiques.
 
 Regle de conception : **la distance euclidienne passe par la transformee
 exacte**, pas par le fast marching. La these mesure une erreur maximale de
-2,77 voxels au 1er ordre et 2,00 au 2nd (fig. 3.19) ; `distance_transform_edt`
-est exacte et plus rapide. Le fast marching (phase 2) reste necessaire pour ce
-qu'il fait seul : geodesiques a vitesse non uniforme et propagation etiquetee.
+2,77 voxels au 1er ordre et 2,00 au 2nd (fig. 3.19) ; `distance_transform` est
+exacte et plus rapide. Le fast marching sert a ce qu'il fait seul : geodesiques
+qui contournent les obstacles, et propagation a vitesse non uniforme.
 
-Phase de portage : 2 (partiellement livre).
-Origine iMorph : `Thread/Granulometry/fastMarchManu.cpp::distFastMarching`,
-`calc_fdmapFast`, `fastMarchLimitedBlock`.
+Phase de portage : 2 (livree, schema du 1er ordre).
+Origine iMorph : `Thread/Granulometry/fastMarchManu.cpp`.
 """
 
 from morphanalyzer.distance.edt import (
@@ -16,31 +15,21 @@ from morphanalyzer.distance.edt import (
     geodesic_ball,
     nearest_seed_propagation,
 )
+from morphanalyzer.distance.fmm import geodesic_distance, travel_time
 
 __all__ = [
     "distance_transform",
     "nearest_seed_propagation",
     "geodesic_ball",
-    "geodesic_distance",
     "travel_time",
+    "geodesic_distance",
     "label_propagation",
 ]
 
 
-def geodesic_distance(*args, **kwargs):
-    raise NotImplementedError(
-        "morphanalyzer.distance.geodesic_distance arrive en phase 2 "
-        "(fast marching a vitesse non uniforme). Pour une boule geodesique "
-        "locale, voir geodesic_ball."
-    )
-
-
-def travel_time(*args, **kwargs):
-    raise NotImplementedError("morphanalyzer.distance.travel_time arrive en phase 2.")
-
-
 def label_propagation(*args, **kwargs):
     raise NotImplementedError(
-        "morphanalyzer.distance.label_propagation arrive en phase 2. "
-        "Pour une affectation au germe le plus proche, voir nearest_seed_propagation."
+        "morphanalyzer.distance.label_propagation (ManuLabelFastMarching) n'est pas "
+        "portee : pour propager des labels, utiliser segmentation.watershed_cells, "
+        "ou nearest_seed_propagation pour une affectation au plus proche."
     )

@@ -32,7 +32,7 @@ def main() -> None:
 
     section("0. Fantome — verite terrain connue")
     vol = ma.phantoms.voronoi_foam(
-        shape=(128,) * 3, n_cells=40, strut=3.0, min_seed_gap=20.0, seed=7
+        shape=(256,) * 3, n_cells=40, strut=3.0, min_seed_gap=20.0, seed=7
     )
     truth = vol.meta["truth"]
     solid, fluid = vol.solid, ~vol.solid

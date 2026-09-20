@@ -140,13 +140,17 @@ def run_from_config(config: dict | str | Path, volume) -> dict[str, Any]:
 def _register_builtin() -> None:
     """Enregistre les etapes des modules deja implementes."""
     from morphanalyzer import (
+        cortical,
         distance,
         filters,
         granulometry,
+        mesh,
         metrics,
+        network,
         segmentation,
         shape,
         skeleton,
+        tortuosity,
     )
 
     register("threshold_otsu", filters.threshold_otsu)
@@ -176,6 +180,25 @@ def _register_builtin() -> None:
     register("cell_morphometry", segmentation.cell_morphometry)
     register("throats", segmentation.throats)
     register("connectivity", segmentation.connectivity)
+    register("pore_network", segmentation.pore_network)
+    register("plateau_skeleton", skeleton.plateau_skeleton)
+    register("travel_time", distance.travel_time)
+    register("geodesic_distance", distance.geodesic_distance)
+    register("point_tortuosity", tortuosity.point_tortuosity)
+    register("plane_tortuosity", tortuosity.plane_tortuosity)
+    register("directional_tortuosity", tortuosity.directional_tortuosity)
+    register("poiseuille_tortuosity", tortuosity.poiseuille_tortuosity)
+    register("surface_mesh", mesh.surface_mesh)
+    register("save_mesh", mesh.save_mesh)
+    register("drainage", network.drainage)
+    register("saturation_curve", network.saturation_curve)
+    register("invasion_percolation", network.invasion_percolation)
+    register("capillary_pressure", network.capillary_pressure)
+    register("angular_profile", cortical.angular_profile)
+    register("angular_aperture", cortical.angular_aperture)
+    register("radial_profile", cortical.radial_profile)
+    register("cortical_connectivity", cortical.cortical_connectivity)
+    register("voronoi_2d", cortical.voronoi_2d)
 
 
 _register_builtin()

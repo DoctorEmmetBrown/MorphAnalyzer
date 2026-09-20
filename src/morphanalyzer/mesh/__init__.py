@@ -1,24 +1,23 @@
-"""Maillage de surface, export et decimation.
+"""Maillage de surface, mesures sur maillage, export, decimation.
 
-marching_cubes de scikit-image remplace DrawIsoSurface / Polygonise, trimesh
-remplace les exports maison (STL binaire et ascii, OBJ, POV, vox) et la
-decimation progressive de Hoppe.
+Phase de portage : 1 (livree).
+Origine iMorph : `Thread/Mesh/mesh.cpp` (3 254 lignes : marching cubes,
+`calcSpecificSurface`, exports STL / OBJ / POV / vox), `model.cpp`, et
+`Thread/Simplificator/progmesh.cpp` pour la decimation — laquelle n'etait pas
+compilee dans la version 3.2.
 
-Phase de portage : 1.
-Origine iMorph : Thread/Mesh/mesh.cpp (3 254 l.), model.cpp ; Thread/Simplificator/progmesh.cpp
-
-Ce module n'est pas encore implemente. Les signatures ci-dessous fixent le
-contrat d'API : elles ne changeront pas sans raison, pour que les notebooks et
-scripts ecrits maintenant restent valides.
+Les ecritures STL, OBJ et PLY sont natives : pas de dependance pour le cas
+courant. `meshio` (extra `mesh`) ouvre les autres formats, `trimesh` ou
+`fast-simplification` la decimation.
 """
 
-from __future__ import annotations
+from morphanalyzer.mesh.surface import (
+    Mesh,
+    decimate,
+    mesh_area,
+    mesh_volume,
+    save_mesh,
+    surface_mesh,
+)
 
-__all__ = ["surface_mesh", "save_mesh", "decimate", "mesh_volume", "mesh_area"]
-
-
-def _todo(name: str):
-    raise NotImplementedError(
-        f"morphanalyzer.mesh.{name} arrive en phase 1. "
-        "Voir docs/PORTING_MAP.md pour l'etat d'avancement."
-    )
+__all__ = ["surface_mesh", "save_mesh", "decimate", "mesh_volume", "mesh_area", "Mesh"]

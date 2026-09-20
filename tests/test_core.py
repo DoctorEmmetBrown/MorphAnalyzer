@@ -46,3 +46,14 @@ def test_connectivity_and_ball():
     # boule de rayon 1 avec le critere floor(d) <= r : tout le cube 3x3x3
     assert len(ball_offsets(1.0)) == 27
     assert len(ball_offsets(0.0)) == 1
+
+
+def test_volume_converts_to_array_without_wrapping():
+    """np.asarray(volume) doit rendre le tableau, pas un objet 0-d."""
+    v = Volume(np.ones((3, 4, 5), dtype=np.float32), voxel_size=2.0)
+    a = np.asarray(v)
+    assert a.shape == (3, 4, 5)
+    assert a.dtype == np.float32
+    assert np.asarray(v, dtype=np.float64).dtype == np.float64
+    # meme tampon tant qu'on ne demande pas de copie
+    assert np.shares_memory(a, v.data)

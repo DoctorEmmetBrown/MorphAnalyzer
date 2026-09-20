@@ -31,6 +31,7 @@ Documentation générée depuis les docstrings.
 ## Distance et propagation
 
 ::: morphanalyzer.distance.edt
+::: morphanalyzer.distance.fmm
 
 ## Granulométrie
 
@@ -50,10 +51,32 @@ Documentation générée depuis les docstrings.
 
 ::: morphanalyzer.shape.tensor
 
+## Tortuosité
+
+::: morphanalyzer.tortuosity.geodesic
+::: morphanalyzer.tortuosity.graph
+
+## Réseau de pores et drainage
+
+::: morphanalyzer.network.drainage
+::: morphanalyzer.network.invasion
+::: morphanalyzer.network.capillarity
+::: morphanalyzer.network.export
+
+## Os cortical
+
+::: morphanalyzer.cortical.angular
+::: morphanalyzer.cortical.structure
+
+## Maillage
+
+::: morphanalyzer.mesh.surface
+
 ## Fantômes
 
 ::: morphanalyzer.phantoms.basic
 ::: morphanalyzer.phantoms.foam
+::: morphanalyzer.phantoms.bone
 
 ## Pipeline et CLI
 

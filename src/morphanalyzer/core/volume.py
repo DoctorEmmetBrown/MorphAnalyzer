@@ -116,6 +116,20 @@ class Volume:
         """Masque booleen du fluide (complementaire du solide)."""
         return ~self.solid
 
+    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        """Rend le tableau sous-jacent : `np.asarray(volume)` fonctionne.
+
+        Sans cette methode, numpy enveloppe la dataclass dans un tableau objet
+        de dimension 0, ce qui casse silencieusement plus loin. Un `Volume`
+        s'utilise donc partout ou une fonction numpy attend un tableau.
+        """
+        a = self.data
+        if dtype is not None:
+            a = a.astype(dtype, copy=False)
+        if copy:
+            a = a.copy()
+        return a
+
     def crop(self, zslice: slice, yslice: slice, xslice: slice) -> Volume:
         return self.with_data(self.data[zslice, yslice, xslice])
 

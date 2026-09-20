@@ -40,19 +40,22 @@ print(ma.metrics.specific_surface(bin_), "µm⁻¹")
 | Segmentation | watershed à priorités réelles, morphométrie des cellules, cols, connectivité, réseau de pores | ✅ |
 | Squelettes | amincissement de Lee, crête de distance, **loi de Plateau** | ✅ |
 | Forme locale | **tenseur d'inertie local**, classification nœud / brin / plaque, orientations | ✅ |
-| Tortuosités | point, plan, directionnelle, graphe, Poiseuille | ⬜ phase 6 |
-| Réseau et drainage | Hazlett, Hilpert, percolation d'invasion | ⬜ phase 7 |
-| Transfert radiatif | lancer de rayons, facteurs d'échange | ⬜ phase 8 |
-| Os cortical | profils radiaux et angulaires, connectivité | ⬜ phase 9 |
+| [Tortuosités](guide/tortuosite.md) | point, plan, directionnelle, graphe, **Poiseuille** | ✅ |
+| [Réseau et drainage](guide/drainage.md) | Hazlett, Hilpert, percolation d'invasion, Young-Laplace | ✅ |
+| [Os cortical](guide/cortical.md) | profils angulaires et radiaux, connectivité empilée, Voronoï 2D | ✅ |
+| [Maillage](guide/maillage.md) | marching cubes, aire et volume, STL / OBJ / PLY, décimation | ✅ |
+| Transfert radiatif | lancer de rayons, facteurs d'échange | ⛔ hors périmètre |
 
-Les fonctions non encore portées existent déjà dans l'API et lèvent une erreur
-qui nomme leur phase, pour qu'un notebook écrit aujourd'hui ne casse pas demain.
-Voir la [carte de portage](PORTING_MAP.md).
+Le transfert radiatif (phase 8) est écarté du portage à la demande. Son API reste
+déclarée et l'appel le dit. Les rares fonctions encore à faire — élagage de
+squelette, flux d'axe médian — lèvent une erreur qui nomme leur phase, pour qu'un
+notebook écrit aujourd'hui ne casse pas demain. Voir la
+[carte de portage](PORTING_MAP.md).
 
 ## Ce qui est original
 
-Deux algorithmes n'ont pas d'équivalent en bibliothèque et justifient à eux seuls
-ce portage.
+Trois algorithmes n'ont pas d'équivalent en bibliothèque et justifient à eux
+seuls ce portage.
 
 La [**classification locale de forme par tenseur d'inertie**](guide/classification-forme.md)
 distingue nœuds, brins et plaques en tout point du solide, à partir de la
@@ -63,6 +66,11 @@ Le [**squelette par loi de Plateau**](guide/plateau.md) ne fait aucun
 amincissement : il propage les labels de cellules dans le solide et lit les
 jonctions dans un voisinage 2×2×2. Il produit directement un graphe de nœuds et
 de brins physiquement interprétable.
+
+Les [**cols déformables**](guide/drainage.md) de la percolation d'invasion
+élargissent les passages à mesure que la pression monte — un modèle de milieu
+élastique. Le rayon effectif d'un col admet une forme close, ce qui évite le
+balayage en pression de l'original.
 
 ## Validation
 

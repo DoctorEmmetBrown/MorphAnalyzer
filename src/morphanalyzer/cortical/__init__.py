@@ -1,31 +1,42 @@
-"""Analyse de l'os cortical : profils radiaux et angulaires.
+"""Analyse de l'os cortical : profils radiaux et angulaires, connectivite.
 
-Porosite par secteurs radiaux et angulaires, distributions d'ouverture
-angulaire, connectivite, Voronoi 2D. L'essentiel du volume C++ etait de
+Le contexte de ce module est une diaphyse : un tube dont les proprietes varient
+surtout avec l'angle autour de l'axe et avec la distance au centre. On decoupe
+donc chaque coupe en parts (« camembert ») et en couronnes, et on moyenne dans
+chacune.
+
+Phase de portage : 9 (livree).
+Origine iMorph : `Thread/Cortical/` — `corticalModuleTabPorosity.cpp`,
+`corticalModuleTabAngularAper.cpp`, `corticalModuleTabConnectivity.cpp`,
+`corticalModuleTabVoronoi2D.cpp`. L'essentiel du volume C++ etait de
 l'interface QCustomPlot ; le calcul se ramene a de la geometrie en coordonnees
-cylindriques sur des cartes deja produites par les autres modules.
-
-Phase de portage : 9.
-Origine iMorph : Thread/Cortical/ (corticalModuleTab{Porosity,AngularAper,Connectivity,Voronoi2D}.cpp)
-
-Ce module n'est pas encore implemente. Les signatures ci-dessous fixent le
-contrat d'API : elles ne changeront pas sans raison, pour que les notebooks et
-scripts ecrits maintenant restent valides.
+cylindriques sur des cartes produites par les autres modules.
 """
 
-from __future__ import annotations
+from morphanalyzer.cortical.angular import (
+    SectorProfile,
+    angular_aperture,
+    angular_profile,
+    iso_area_angles,
+    radial_profile,
+    sector_bounds,
+    sector_map,
+)
+from morphanalyzer.cortical.structure import (
+    ConnectivityProfile,
+    cortical_connectivity,
+    voronoi_2d,
+)
 
 __all__ = [
-    "radial_profile",
     "angular_profile",
     "angular_aperture",
+    "radial_profile",
+    "sector_map",
+    "sector_bounds",
+    "iso_area_angles",
+    "SectorProfile",
     "cortical_connectivity",
+    "ConnectivityProfile",
     "voronoi_2d",
 ]
-
-
-def _todo(name: str):
-    raise NotImplementedError(
-        f"morphanalyzer.cortical.{name} arrive en phase 9. "
-        "Voir docs/PORTING_MAP.md pour l'etat d'avancement."
-    )

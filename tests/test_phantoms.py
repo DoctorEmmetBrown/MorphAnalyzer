@@ -89,3 +89,26 @@ def test_voronoi_foam_cells_are_connected(foam):
     for lab in np.unique(labels[labels > 0]):
         _, n = ndi.label(labels == lab)
         assert n == 1, f"la cellule {lab} est fragmentee en {n} morceaux"
+
+
+def test_cortical_tube_truth_is_exact():
+    """Le fantome d'os connait sa porosite et son nombre de canaux."""
+    from scipy import ndimage as ndi
+
+    v = ma.phantoms.cortical_tube(shape=(8, 96, 96), r_inner=20, r_outer=42, n_canals=12, seed=1)
+    t = v.meta["truth"]
+    solid = np.asarray(v)
+    ring = np.broadcast_to(t["ring_mask"], solid.shape)
+    canal = np.broadcast_to(t["canal_mask"], solid.shape)
+    # la matrice est exactement l'anneau prive des canaux
+    assert np.array_equal(solid, ring & ~canal)
+    assert t["porosity"] == pytest.approx(t["canal_mask"].sum() / t["ring_area"])
+    assert len(t["canal_centres"]) == 12
+    # les canaux ne se touchent pas : 12 composantes distinctes
+    _lab, n = ndi.label(t["canal_mask"], np.ones((3, 3)))
+    assert n == 12
+
+
+def test_cortical_tube_refuses_an_impossible_ring():
+    with pytest.raises(ValueError, match="epaisseur"):
+        ma.phantoms.cortical_tube(r_inner=20.0, r_outer=22.0, canal_radius=5.0)

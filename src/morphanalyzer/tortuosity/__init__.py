@@ -1,33 +1,36 @@
-"""Tortuosites geometrique, directionnelle, sur graphe et de type Poiseuille.
+"""Tortuosites geometrique, de plan, directionnelle, sur graphe et de Poiseuille.
 
-Definition de Carman conservee : rapport au carre de la longueur geodesique a la
-distance euclidienne. La variante Poiseuille propage avec un champ de vitesse
-v = 1 - d^2/R^2 (d = distance a la paroi, R = rayon d'ouverture local), ce qui
-donne des chemins centres dans les constrictions, plus proches d'une ligne de
-courant que du chemin topologiquement le plus court.
+Phase de portage : 6 (livree).
+Origine iMorph : `Thread/Tortuosity/` (graph.cpp, les `*TortuosityModule`),
+`Thread/Granulometry/fastMarchManu.cpp::tortuosityFastMarch*`.
 
-Phase de portage : 6.
-Origine iMorph : Thread/Tortuosity/ (graph.cpp 2 363 l.) ; fastMarchManu.cpp : tortuosityFastMarch*
+Definition de Carman [Carm 37], conservee telle quelle : pour deux points de la
+meme phase, connectes,
 
-Ce module n'est pas encore implemente. Les signatures ci-dessous fixent le
-contrat d'API : elles ne changeront pas sans raison, pour que les notebooks et
-scripts ecrits maintenant restent valides.
+$$ \\tau(p_1, p_2) = \\left(\\frac{L_{min}(p_1, p_2)}{\\lVert p_1 - p_2 \\rVert}\\right)^2 $$
+
+ou `L_min` est la longueur de la geodesique. C'est donc un **carre** de rapport de
+longueurs : une tortuosite de 1,21 correspond a un chemin 10 % plus long.
 """
 
-from __future__ import annotations
+from morphanalyzer.tortuosity.geodesic import (
+    TortuosityResult,
+    directional_tortuosity,
+    plane_tortuosity,
+    point_tortuosity,
+    poiseuille_speed,
+    poiseuille_tortuosity,
+    shortest_path,
+)
+from morphanalyzer.tortuosity.graph import graph_tortuosity
 
 __all__ = [
     "point_tortuosity",
     "plane_tortuosity",
     "directional_tortuosity",
-    "graph_tortuosity",
     "poiseuille_tortuosity",
+    "poiseuille_speed",
+    "graph_tortuosity",
     "shortest_path",
+    "TortuosityResult",
 ]
-
-
-def _todo(name: str):
-    raise NotImplementedError(
-        f"morphanalyzer.tortuosity.{name} arrive en phase 6. "
-        "Voir docs/PORTING_MAP.md pour l'etat d'avancement."
-    )
