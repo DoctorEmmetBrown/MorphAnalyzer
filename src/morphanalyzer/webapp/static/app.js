@@ -482,7 +482,8 @@ function pollJob() {
         $("#run").disabled = S.queue.length === 0;
         await loadProject();
         if (j.status === "done") {
-          toast(`terminé en ${j.elapsed.toFixed(1)} s`);
+          if (j.warnings?.length) toast("⚠ " + j.warnings[0], true);
+          else toast(`terminé en ${j.elapsed.toFixed(1)} s`);
           S.queue = [];
           renderQueue();
         } else {
@@ -511,6 +512,12 @@ function renderJob(j) {
       li.textContent = `${entry.step} · ${entry.seconds}s → ${entry.produced}`;
     }
     ol.appendChild(li);
+    for (const w of entry.warnings || []) {
+      const wl = document.createElement("li");
+      wl.className = "warn";
+      wl.textContent = "⚠ " + w;
+      ol.appendChild(wl);
+    }
   }
   ol.scrollTop = ol.scrollHeight;
 }

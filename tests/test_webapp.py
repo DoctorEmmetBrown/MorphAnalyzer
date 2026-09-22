@@ -309,3 +309,41 @@ def test_importing_the_core_does_not_pull_the_server():
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.stdout.strip() == "[]", out.stdout
+
+
+def test_warnings_are_captured_and_shown(tmp_path):
+    """Un repli silencieux ne doit pas rester silencieux.
+
+    Le cas qui motive ce test : sans numba, `watershed_cells` se replie sur
+    `skimage`, qui quantifie le relief et redonne les frontieres en marches
+    d'escalier de la figure 3.4 de la these au lieu de la figure 3.5. Dans un
+    terminal l'avertissement se voit ; dans une interface, il faut le remonter.
+    """
+    import warnings as _w
+
+    from morphanalyzer.pipeline import register, unregister
+
+    def _bavard(volume):
+        _w.warn("repli silencieux", RuntimeWarning, stacklevel=2)
+        return float(np.asarray(volume).mean())
+
+    register("_test_bavard", _bavard)
+    try:
+        vol = ma.phantoms.sphere(shape=(16,) * 3, radius=5.0)
+        proj = Project.create(tmp_path / "p", volume=vol)
+        job = JobRunner(proj).run_sync([{"step": "_test_bavard", "params": {"out": "moyenne"}}])
+        assert job.status == "done", job.error
+        assert job.warnings == ["repli silencieux"]
+        assert job.log[0]["warnings"] == ["repli silencieux"]
+        # et l'historique du projet en garde la trace
+        assert "repli silencieux" in proj.history[-1]["note"]
+    finally:
+        unregister("_test_bavard")
+
+
+def test_serving_a_plain_directory_is_refused(tmp_path):
+    """Servir un dossier quelconque ne doit pas y creer un projet en douce."""
+    with pytest.raises(FileNotFoundError, match="morphanalyzer new"):
+        create_app(tmp_path / "pas_un_projet")
+    app = create_app(tmp_path / "cree", create=True)
+    assert app.state.project.path.name == "cree"

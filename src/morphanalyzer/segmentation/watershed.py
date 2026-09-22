@@ -270,9 +270,12 @@ def watershed(
         use = "numba" if have("numba") else "skimage"
         if use == "skimage":
             warnings.warn(
-                "numba absent : repli sur skimage.segmentation.watershed, qui quantifie "
-                "le relief et n'implemente pas la resolution de collisions par label "
-                'majoritaire. Pour la variante fidele : pip install "morphanalyzer[fast]".',
+                "numba absent : repli sur skimage.segmentation.watershed. Ce n'est PAS "
+                "l'algorithme de la these : skimage quantifie le relief et ne resout pas "
+                "les collisions par label majoritaire, ce qui redonne les frontieres en "
+                "marches d'escalier de la figure 3.4 au lieu de la figure 3.5 (mesure sur "
+                "une mousse de Voronoi : +15 % de surface d'interface, 9 % des voxels "
+                'attribues autrement). Pour la variante fidele : pip install "morphanalyzer[fast]".',
                 RuntimeWarning,
                 stacklevel=2,
             )

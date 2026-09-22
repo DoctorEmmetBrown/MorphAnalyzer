@@ -33,6 +33,11 @@ def main() -> None:  # pragma: no cover - point d'entree
         from morphanalyzer import io
 
         p = Path(path)
+        if not p.exists():
+            raise typer.BadParameter(
+                f"{p} n'existe pas (chemin resolu : {p.resolve()}). "
+                "Donner le chemin d'une pile TIFF ou d'un repertoire d'images."
+            )
         if p.is_dir() or p.suffix.lower() in (".tif", ".tiff"):
             return io.read_stack(p, voxel_size=voxel_size)
         raise typer.BadParameter(
@@ -199,6 +204,17 @@ def main() -> None:  # pragma: no cover - point d'entree
             morphanalyzer serve mousse/ --host 0.0.0.0 --no-browser
             ssh -L 8000:localhost:8000 la-machine
         """
+        from morphanalyzer.project import MANIFEST_NAME
+
+        if not (directory / MANIFEST_NAME).exists():
+            raise typer.BadParameter(
+                f"{directory} n'est pas un projet morphanalyzer (pas de {MANIFEST_NAME}). "
+                f"Le creer d'abord :\n"
+                f"  morphanalyzer new {directory} --volume <pile.tif ou repertoire> "
+                f"--voxel-size <taille> --binarize\n"
+                f"  morphanalyzer new {directory} --phantom-kind voronoi_foam --shape 128"
+            )
+
         from morphanalyzer.webapp import serve as _serve
 
         _serve(directory, host=host, port=port, read_only=read_only, open_browser=browser)

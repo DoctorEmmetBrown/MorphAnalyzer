@@ -1,10 +1,26 @@
 # L'interface
 
 ```bash
-pip install "morphanalyzer[web,fast]"
-morphanalyzer new mousse/ --volume tomo/ --voxel-size 7.46 --binarize
-morphanalyzer serve mousse/
+pip install -e ".[web,fast]"          # depuis le dossier du paquet
+
+# a) a partir d'un vrai volume : chemin d'une pile TIFF ou d'un repertoire d'images
+morphanalyzer new mousse/ --volume /chemin/vers/ma_tomo/ --voxel-size 7.46 --binarize
+
+# b) ou, pour essayer tout de suite, a partir d'un fantome
+morphanalyzer new essai/ --phantom-kind voronoi_foam --shape 128
+
+morphanalyzer serve essai/
 ```
+
+!!! warning "Deux pieges au premier lancement"
+    `--volume` attend un **chemin existant** — une pile TIFF ou un répertoire
+    d'images. `tomo/` dans un exemple est un emplacement à remplacer, pas un nom
+    à taper.
+
+    Et `pip install "morphanalyzer[web]"` répond `does not provide the extra
+    'web'` si l'installation éditable date d'avant l'ajout de cet extra : les
+    métadonnées sont figées à l'installation. Relancer `pip install -e
+    ".[web,fast]"` depuis le dossier du paquet.
 
 Le navigateur s'ouvre sur le projet. Trois colonnes : les **calques** et le
 **pipeline** à gauche, le **slicer** au centre, les **courbes** et
@@ -144,6 +160,18 @@ pression montant quand le rayon descend.
 Le survol donne les valeurs exactes, `table` affiche le tableau sous le
 graphique, `CSV` le télécharge. Il n'y a **jamais deux axes d'ordonnées** : deux
 grandeurs d'échelles différentes font deux graphiques.
+
+## Les replis silencieux ne le sont pas
+
+Un calcul qui se dégrade sans le dire est pire qu'un calcul qui échoue. Les
+avertissements émis pendant une étape sont capturés et remontés : dans le journal
+de la tâche, dans une notification, et dans l'historique du projet.
+
+Le cas qui a motivé ce choix : sans numba, `watershed_cells` se replie sur
+`skimage`, qui quantifie le relief et redonne les frontières en marches
+d'escalier de la figure 3.4 de la thèse au lieu de la figure 3.5 — +15 % de
+surface d'interface. Dans un terminal l'avertissement se voit ; dans une
+interface, il fallait le remonter.
 
 ## Ce qui n'y est pas encore
 

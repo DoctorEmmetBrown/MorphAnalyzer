@@ -73,6 +73,26 @@ La dégradation au-delà de 0,8 est la sous-segmentation que la thèse annonce
 (fig. 3.3). Désactiver `keep_border_balls` fait tomber l'IoU médian à 0,55 :
 les cellules de bord perdent leur germe et avalent leurs voisines.
 
+### Le repli sans numba reproduit la figure 3.4
+
+Contrôle involontaire mais concluant : exécuté dans un environnement sans numba,
+le portage se replie sur `skimage.segmentation.watershed` — l'algorithme de Meyer
+à file hiérarchique — et produit **exactement** l'artefact que la figure 3.4 de la
+thèse documente, des frontières en marches d'escalier sur les lignes de partage
+obliques. La figure 3.5, obtenue avec le tas binaire à priorités réelles et la
+résolution de collisions par label majoritaire, est ce que rend le noyau numba.
+
+Sur une mousse de Voronoï de 128³, à marqueurs et carte de distance identiques :
+
+| | IoU médian | surface d'interface | voxels attribués autrement |
+|---|---:|---:|---:|
+| tas binaire, priorités réelles (fig. 3.5) | **0,908** | référence | — |
+| file hiérarchique, relief quantifié (fig. 3.4) | 0,892 | **+15 %** | **9,1 %** |
+
+L'IoU bouge peu parce qu'il mesure un recouvrement de volume, dominé par
+l'intérieur des cellules. C'est la **surface d'interface** qui voit la
+différence : +15 %, c'est la longueur ajoutée par les marches.
+
 ### Classification de forme
 
 Les trois formes canoniques de la figure 3.35 :

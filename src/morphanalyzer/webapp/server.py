@@ -69,8 +69,13 @@ def _num(value, fallback):
         return fallback
 
 
-def create_app(project_path: str | Path, *, read_only: bool = False):
-    """Construit l'application FastAPI autour d'un dossier de projet."""
+def create_app(project_path: str | Path, *, read_only: bool = False, create: bool = False):
+    """Construit l'application FastAPI autour d'un dossier de projet.
+
+    Le dossier doit deja etre un projet : servir un dossier quelconque en y
+    creant un projet vide au passage serait une surprise desagreable. Passer
+    `create=True` pour l'autoriser explicitement.
+    """
     from morphanalyzer._deps import require
 
     fastapi = require("fastapi", reason="l'interface web")
@@ -84,7 +89,15 @@ def create_app(project_path: str | Path, *, read_only: bool = False):
     # standards, et on passe le corps de requete par `Body`.
 
     path = Path(project_path)
-    project = Project.open(path) if (path / "morphanalyzer.json").exists() else Project.create(path)
+    if (path / "morphanalyzer.json").exists():
+        project = Project.open(path)
+    elif create:
+        project = Project.create(path)
+    else:
+        raise FileNotFoundError(
+            f"{path} n'est pas un projet morphanalyzer (pas de morphanalyzer.json). "
+            f"Le creer d'abord : morphanalyzer new {path} --volume <pile.tif> --voxel-size <n>"
+        )
     lock = threading.Lock()
     runner = JobRunner(project, lock)
 

@@ -17,6 +17,7 @@
   --accent-ink:#ffffff;
   --accent-soft:#e8f0fc;
   --danger:    #c33a3a;
+  --warn:      #a2600a;
   --ok:        #128a60;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #4a3aa7;
   --s5: #eda100; --s6: #e87ba4; --s7: #008300; --s8: #e34948;
@@ -41,6 +42,7 @@
     --accent:    #3987e5;
     --accent-soft:#1a2b45;
     --danger:    #e06b6b;
+    --warn:      #e0a33f;
     --ok:        #35b98a;
     --s1: #3987e5; --s2: #ff8a5c; --s3: #35c496; --s4: #9085e9;
     --s5: #e0b23f; --s6: #e88fb0; --s7: #4bb14b; --s8: #e66767;
@@ -52,7 +54,7 @@
   --surface-0: #14141a; --surface-1: #1c1c23; --surface-2: #23232b;
   --surface-3: #2c2c35; --border: #32323c; --border-strong: #45454f;
   --text: #f2f2f4; --text-dim: #b2b2ba; --text-mute: #82828c;
-  --accent: #3987e5; --accent-soft: #1a2b45; --danger: #e06b6b; --ok: #35b98a;
+  --accent: #3987e5; --accent-soft: #1a2b45; --danger: #e06b6b; --warn: #e0a33f; --ok: #35b98a;
   --s1: #3987e5; --s2: #ff8a5c; --s3: #35c496; --s4: #9085e9;
   --s5: #e0b23f; --s6: #e88fb0; --s7: #4bb14b; --s8: #e66767;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
@@ -204,6 +206,7 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius
           font-family: var(--mono); color: var(--text-dim); max-height: 150px; overflow-y: auto; }
 .joblog li { padding: 1px 0; }
 .joblog li.err { color: var(--danger); white-space: pre-wrap; }
+.joblog li.warn { color: var(--warn); white-space: pre-wrap; }
 
 /* ── slicer ────────────────────────────────────────────────────────── */
 .toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px;

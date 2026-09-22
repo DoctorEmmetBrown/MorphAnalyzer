@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 import uuid
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,6 +37,7 @@ class Job:
     results: dict[str, Any] = field(default_factory=dict)
     outputs: list[str] = field(default_factory=list)
     tables: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     error: str | None = None
     started: float | None = None
     finished: float | None = None
@@ -52,6 +54,7 @@ class Job:
             "results": self.results,
             "outputs": self.outputs,
             "tables": self.tables,
+            "warnings": self.warnings,
             "error": self.error,
             "elapsed": (self.finished or time.time()) - self.started if self.started else 0.0,
         }
@@ -120,12 +123,21 @@ class JobRunner:
                 fn = get_step(name)
                 params = resolve_params(raw, self.project)
                 t0 = time.perf_counter()
-                res = fn(current, **params)
+                # Les avertissements sont captures et remontes a l'interface. Sans cela
+                # un repli silencieux — typiquement « numba absent », qui redonne le
+                # watershed a relief quantifie — passerait inapercu dans un terminal
+                # qu'on ne regarde pas.
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    res = fn(current, **params)
                 dt = time.perf_counter() - t0
-                current, kept = self._store(job, name, out_name, res, raw, dt, current)
-                job.log.append(
-                    {"step": name, "params": raw, "seconds": round(dt, 3), "produced": kept}
-                )
+                notes = [str(w.message) for w in caught]
+                current, kept = self._store(job, name, out_name, res, raw, dt, current, notes)
+                entry = {"step": name, "params": raw, "seconds": round(dt, 3), "produced": kept}
+                if notes:
+                    entry["warnings"] = notes
+                    job.warnings.extend(notes)
+                job.log.append(entry)
             job.status = "done"
         except Exception as exc:  # noqa: BLE001 - on veut tout rapporter a l'interface
             job.status = "error"
@@ -136,7 +148,15 @@ class JobRunner:
             job.finished = time.time()
 
     def _store(
-        self, job: Job, step: str, out_name: str, res: Any, params: dict, dt: float, current
+        self,
+        job: Job,
+        step: str,
+        out_name: str,
+        res: Any,
+        params: dict,
+        dt: float,
+        current,
+        notes: list[str] | None = None,
     ):
         """Range le resultat d'une etape selon sa nature.
 
@@ -168,13 +188,15 @@ class JobRunner:
                 else:
                     job.results[name] = value
                     produced.append(f"{name} = {value}")
-            note = "" if produced else "aucune sortie"
+            note = "; ".join(produced) or "aucune sortie"
+            if notes:
+                note += " | avertissement : " + " | ".join(notes)
             self.project.log_step(
                 step,
                 params,
                 outputs=job.outputs[-len(produced) :] if produced else [],
                 duration=dt,
-                note=note if note else "; ".join(produced),
+                note=note,
             )
         return new_current, ", ".join(produced) or "—"
 

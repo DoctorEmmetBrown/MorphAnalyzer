@@ -37,6 +37,7 @@ from typing import Any
 __all__ = [
     "Pipeline",
     "register",
+    "unregister",
     "available_steps",
     "run_from_config",
     "get_step",
@@ -58,6 +59,11 @@ def register(name: str, fn: Callable[..., Any] | None = None):
         return deco
     _REGISTRY[name] = fn
     return fn
+
+
+def unregister(name: str) -> None:
+    """Retire une etape du registre. Sans effet si elle n'y est pas."""
+    _REGISTRY.pop(name, None)
 
 
 def available_steps() -> list[str]:

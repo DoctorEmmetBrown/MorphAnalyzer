@@ -28,6 +28,10 @@ _EXTRA_OF: dict[str, str] = {
     "pyvista": "viz",
     "typer": "cli",
     "yaml": "cli",
+    "fastapi": "web",
+    "uvicorn": "web",
+    "starlette": "web",
+    "PIL": "web",
     "cupy": "gpu",
 }
 
