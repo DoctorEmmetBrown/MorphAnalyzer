@@ -59,6 +59,16 @@ PRESETS: list[dict[str, Any]] = [
                 "params": {"out": "granulometrie", "bins": 30, "mask": "@" + PHASE},
                 "input": "ouverture",
             },
+            {
+                # iMorph n'avait qu'un calcul de granulometrie, qui donnait du
+                # meme coup les centres des boules. Ici ce sont deux algorithmes
+                # differents — le balayage en rayons pour la carte, les h-maxima
+                # pour les centres — mais la chaine rend les deux, avec la table
+                # des boules et leur taux de remplissage.
+                "step": "maximal_balls",
+                "params": {"out": "boules", "distance": "@distance"},
+                "input": PHASE,
+            },
         ],
     },
     {

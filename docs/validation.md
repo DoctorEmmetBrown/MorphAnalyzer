@@ -100,6 +100,33 @@ prédites de moins de 15 % du volume médian :
 L'IoU médian des cellules intérieures est inchangé (0,907 → 0,908). Ce sont des
 faux germes qui disparaissent, pas des cellules.
 
+### Une granulométrie, ou deux ?
+
+iMorph n'avait **qu'un** calcul de granulométrie, et il donnait du même coup les
+centres des boules. Ici ce sont deux algorithmes distincts, et la question de
+les fusionner s'est posée. Mesuré sur la mousse de référence (128³) :
+
+| ce qu'on calcule | biais vs `aperture_map` | \|écart\| p95 | temps |
+|---|---:|---:|---:|
+| `aperture_map(n_radii=24)` | référence | — | 3,0 s |
+| `aperture_map(n_radii=64)` | référence | — | 8,7 s |
+| territoires, candidats = h-maxima | −6,98 vx | 20,9 vx | 0,03 s |
+| territoires, candidats = tous les voxels | +0,30 vx | 0,95 vx | 41,5 s |
+
+La fusion est possible mais coûteuse : l'image d'identifiants ne vaut comme
+carte d'ouverture que si **tous** les voxels sont candidats — la boucle
+exhaustive d'iMorph, celle dont la thèse rapporte les 34 minutes. Avec le
+raccourci des h-maxima, qui suffit largement pour les centres (fig. 2.19 : « les
+points restants se situent pour la majorité sur le squelette des boules
+maximales »), l'image d'identifiants sous-estime l'ouverture de 7 voxels en
+moyenne : les voxels qu'aucune boule candidate ne recouvre restent à zéro.
+
+D'où le choix : deux passes, le balayage en rayons pour la carte (3 s) et les
+h-maxima pour les centres (0,03 s), soit 3 s contre 41 s. La chaîne type
+`granulométrie` les enchaîne toutes les deux et rend aussi l'**image
+d'identifiants** — l'`imGranulo` d'iMorph — pour qu'on voie d'où sortent les
+marqueurs.
+
 ### Le repli sans numba reproduit la figure 3.4
 
 Contrôle involontaire mais concluant : exécuté dans un environnement sans numba,

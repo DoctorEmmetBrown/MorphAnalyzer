@@ -253,6 +253,16 @@ def unpack(res: Any, out: str) -> list[tuple[str, str, Any]]:
         if getattr(res, "edges", None) is not None and len(res.edges):
             out_list.append(("table", f"{out}_table_brins", res.edges))
         return out_list
+    if cls == "BallTable":
+        # l'image d'identifiants est celle d'iMorph (`imGranulo`) : chaque voxel
+        # porte le centre de la boule maximale qui l'a pris. La rendre visible,
+        # c'est voir d'ou sortent les marqueurs.
+        ids = np.where(res.ids >= 0, res.ids, 0)
+        return [
+            ("table", out, res.table),
+            ("layer", f"{out}_territoires", ids.astype(np.int32, copy=False)),
+            ("value", f"{out}_n", int(len(res.table))),
+        ]
     if cls == "ShapeTensor":
         return [("table", out, res.to_frame())]
     if cls == "TortuosityResult":

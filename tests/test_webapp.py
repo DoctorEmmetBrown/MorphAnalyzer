@@ -410,6 +410,9 @@ def test_presets_run_and_segment_correctly(foam_project):
         "marqueurs_fluide",
         "cellules_fluide",
     } <= set(proj.layers)
+    assert {"boules_fluide", "boules_fluide_territoires"} & (
+        set(proj.tables) | set(proj.layers)
+    ) == {"boules_fluide", "boules_fluide_territoires"}
     assert {
         "granulometrie_fluide",
         "morphometrie_fluide",
