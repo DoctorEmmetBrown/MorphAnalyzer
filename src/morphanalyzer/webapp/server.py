@@ -226,11 +226,14 @@ def create_app(project_path: str | Path, *, read_only: bool = False, create: boo
         return out
 
     @app.get("/api/presets")
-    def api_presets() -> list[dict[str, Any]]:
+    def api_presets(target: str = "fluid") -> list[dict[str, Any]]:
         from morphanalyzer.webapp.presets import build_presets
 
         project._load_manifest()
-        return build_presets(project)
+        try:
+            return build_presets(project, target)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @app.post("/api/run")
     def api_run(body: dict = Body(...)) -> dict[str, Any]:

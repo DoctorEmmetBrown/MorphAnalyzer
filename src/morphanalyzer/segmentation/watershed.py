@@ -254,7 +254,12 @@ def watershed(
         raise ValueError(f"marqueurs de forme {mk.shape}, relief de forme {r.shape}")
     valid = (r > 0) if mask is None else as_array(mask).astype(bool, copy=False)
     if not (mk > 0).any():
-        raise ValueError("aucun marqueur : rien a inonder")
+        raise ValueError(
+            "aucun marqueur : l'image de marqueurs est vide. Causes usuelles : "
+            "`cell_markers` a tourne sur la mauvaise phase (les brins d'une mousse "
+            "sont trop fins pour contenir une boule de rayon min_radius), ou "
+            "min_radius / fill_ratio sont trop severes."
+        )
     # Les marqueurs n'ont pas a etre dans le masque. iMorph s'en sert ainsi pour
     # propager les labels de cellules *dans le solide* : les germes sont les
     # voxels de fluide deja etiquetes, juste a l'exterieur du domaine inonde, et
@@ -263,7 +268,17 @@ def watershed(
     from scipy import ndimage as _ndi
 
     if not (_ndi.binary_dilation(mk > 0, structure=np.ones((3, 3, 3), dtype=bool)) & valid).any():
-        raise ValueError("aucun marqueur adjacent au masque : l'inondation ne peut pas demarrer")
+        n_mk = int((mk > 0).sum())
+        n_in = int(((mk > 0) & valid).sum())
+        raise ValueError(
+            f"aucun marqueur adjacent au masque : l'inondation ne peut pas demarrer. "
+            f"{n_mk} marqueur(s), dont {n_in} dans le masque, qui couvre "
+            f"{100 * valid.mean():.1f} % du volume. "
+            "Le cas le plus courant est un masque pris sur l'autre phase : des "
+            "marqueurs places au centre des pores sont loin du solide, et leur "
+            "voisinage immediat ne le touche pas. Verifier que `mask` et les "
+            "marqueurs designent la meme phase."
+        )
 
     use = method
     if use == "auto":

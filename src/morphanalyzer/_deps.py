@@ -19,6 +19,7 @@ _EXTRA_OF: dict[str, str] = {
     "zarr": "bigdata",
     "dask": "bigdata",
     "trimesh": "mesh",
+    "fast_simplification": "mesh",
     "meshio": "mesh",
     "porespy": "network",
     "openpnm": "network",

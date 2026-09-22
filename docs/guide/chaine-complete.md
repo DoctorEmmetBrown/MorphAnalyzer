@@ -86,10 +86,20 @@ Le seuil par défaut est **0,65**, la valeur d'iMorph 3.2. La thèse cite 75 % ;
 deux sont dans le palier 60–80 % qu'elle identifie comme stable (fig. 3.3).
 Au-delà de 0,8 on sous-segmente, ce qu'un test vérifie.
 
-Les boules tronquées par le bord sont conservées par défaut
-(`keep_border_balls=True`, comme `isUseBallsAtFace` d'iMorph) : sans elles, les
-cellules de bord n'ont pas de germe et avalent leurs voisines. Mesuré sur le
-fantôme de Voronoï, les désactiver fait tomber l'IoU médian de 0,91 à 0,55.
+Les boules tronquées par le bord sont **comparées à la part d'elles-mêmes qui
+tient dans l'image**, pas à la sphère entière. Sans cet écrêtage, une boule de
+bord parfaitement inscrite dans un pore affichait un taux de 0,42 parce que la
+moitié d'elle sortait du volume, et se faisait rejeter comme mal formée. iMorph
+contournait le problème en exemptant ces boules du test (`isUseBallsAtFace`),
+donc en gardant aussi les vraies boules incomplètes — d'où des cellules de bord
+découpées en morceaux.
+
+L'écrêtage rend le seuil interprétable partout, et `keep_border_balls` vaut
+désormais `False` par défaut. Mesuré sur le fantôme de Voronoï (128³, 85
+cellules, seuil 0,55) : l'IoU médian des cellules intérieures ne bouge pas
+(0,908), les marqueurs passent de 85 à 70 et les fragments — cellules prédites
+de moins de 15 % du volume médian — de 17 à 9. On perd des faux germes, pas des
+cellules.
 
 ### Watershed
 

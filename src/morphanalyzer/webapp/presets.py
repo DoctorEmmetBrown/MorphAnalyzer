@@ -15,32 +15,48 @@ euclidien des marqueurs — mais l'IoU contre la partition exacte tombe de 0,908
 0,636. D'ou `input` explicite, et un test qui rejoue chaque chaine et verifie
 son resultat contre la verite terrain.
 
-Les chaines sont resolues **pour un projet donne** : si son volume d'entree est
-la phase solide (le cas normal, convention `True = solide`), on prefixe un
-changement de phase.
+Deuxieme piege, celui-la signale par l'usage : **une chaine s'execute sur une
+phase**. La meme granulometrie a un sens sur le fluide (taille des pores) et sur
+le solide (epaisseur des brins), et iMorph donnait les deux. Si les deux ecrivent
+dans `distance`, la seconde ecrase la premiere et on ne peut plus les comparer.
+Les chaines sont donc resolues **pour un projet et une phase** : le placeholder
+`{phase}` devient le calque de la phase demandee — precede au besoin d'un
+`complement` — et toutes les sorties portent le suffixe `_fluide` ou `_solide`.
+Les deux jeux coexistent, calque par calque, courbe par courbe.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["PRESETS", "build_presets", "FLUID"]
+__all__ = ["PRESETS", "build_presets", "PHASE", "OTHER", "TARGETS"]
 
-#: Marqueur remplace par le nom reel du calque de phase fluide.
-FLUID = "{fluide}"
+#: Marqueur remplace par le nom reel du calque de la phase visee.
+PHASE = "{phase}"
+
+#: Marqueur remplace par le nom reel du calque de l'autre phase.
+OTHER = "{autre}"
+
+#: Les deux phases, dans l'ordre ou l'interface les propose.
+TARGETS = ("fluid", "solid")
+
+_SUFFIX = {"fluid": "_fluide", "solid": "_solide"}
+_LABEL = {"fluid": "fluide", "solid": "solide"}
 
 PRESETS: list[dict[str, Any]] = [
     {
         "id": "granulo",
         "label": "granulométrie",
         "summary": "Distance à la paroi, carte d'ouverture, distribution de taille de pore.",
+        "summary_solid": "Distance à l'interface, carte d'ouverture, "
+        "distribution d'épaisseur de brin.",
         "requires": [],
         "steps": [
-            {"step": "distance_transform", "params": {"out": "distance"}, "input": FLUID},
-            {"step": "aperture_map", "params": {"out": "ouverture", "n_radii": 24}, "input": FLUID},
+            {"step": "distance_transform", "params": {"out": "distance"}, "input": PHASE},
+            {"step": "aperture_map", "params": {"out": "ouverture", "n_radii": 24}, "input": PHASE},
             {
                 "step": "pore_size_distribution",
-                "params": {"out": "granulometrie", "bins": 30, "mask": "@" + FLUID},
+                "params": {"out": "granulometrie", "bins": 30, "mask": "@" + PHASE},
                 "input": "ouverture",
             },
         ],
@@ -49,20 +65,23 @@ PRESETS: list[dict[str, Any]] = [
         "id": "cellules",
         "label": "cellules & cols",
         "summary": "Boules maximales, marqueurs, ligne de partage des eaux, morphométrie, cols.",
+        "summary_solid": "Segmentation de la phase solide en grains : "
+        "boules maximales, partage des eaux, morphométrie, contacts.",
         "requires": [],
         "steps": [
-            {"step": "distance_transform", "params": {"out": "distance"}, "input": FLUID},
+            {"step": "distance_transform", "params": {"out": "distance"}, "input": PHASE},
             {
                 "step": "cell_markers",
                 "params": {"out": "marqueurs", "distance": "@distance", "fill_ratio": 0.55},
-                "input": FLUID,
+                "input": PHASE,
             },
             {
                 "step": "watershed_cells",
                 "params": {
                     "out": "cellules",
                     "markers": "@marqueurs",
-                    "mask": "@" + FLUID,
+                    # le masque est la MEME phase que les marqueurs
+                    "mask": "@" + PHASE,
                 },
                 # le relief est la DISTANCE, pas les marqueurs
                 "input": "distance",
@@ -76,11 +95,17 @@ PRESETS: list[dict[str, Any]] = [
         "label": "squelette de Plateau",
         "summary": "Nœuds et brins par la loi de Plateau, à partir des cellules segmentées.",
         "requires": ["cellules"],
+        # la loi de Plateau decrit les parois d'une mousse : le squelette vit
+        # dans le solide, et les cellules qui s'y rencontrent sont celles du
+        # fluide. La chaine n'a donc de sens que dans un sens.
+        "targets": ("fluid",),
         "steps": [
             {
+                # le squelette vit dans le SOLIDE, les cellules sont celles du
+                # fluide : c'est la seule etape qui touche les deux phases.
                 "step": "plateau_skeleton",
                 "params": {"out": "plateau", "cells": "@cellules"},
-                "input": "volume",
+                "input": OTHER,
             },
         ],
     },
@@ -89,6 +114,8 @@ PRESETS: list[dict[str, Any]] = [
         "label": "drainage",
         "summary": "Intrusion morphologique par la face z = 0 et courbe de rétention.",
         "requires": [],
+        # on draine un espace poreux, pas une matrice.
+        "targets": ("fluid",),
         "steps": [
             {
                 "step": "drainage",
@@ -98,42 +125,85 @@ PRESETS: list[dict[str, Any]] = [
                     "step": 0.5,
                     "surface_tension": 0.0728,
                 },
-                "input": FLUID,
+                "input": PHASE,
             },
         ],
     },
 ]
 
 
-def build_presets(project) -> list[dict[str, Any]]:
-    """Resout les chaines types pour un projet : phase fluide, calques presents.
+def phase_layer(project, target: str) -> tuple[str, list[dict[str, Any]]]:
+    """Nom du calque portant `target`, et les etapes a inserer pour l'obtenir.
 
-    Rend une copie ou `FLUID` est remplace par le nom du calque de phase fluide,
-    precedee au besoin d'une etape `complement`. Chaque chaine porte `available`
-    et `missing` pour que l'interface sache ce qu'elle peut lancer.
+    Le volume d'entree est d'une phase — `project.phase`, `"solid"` par defaut,
+    convention `True = solide`. Demander l'autre phase coute un `complement`.
     """
-    layers = set(project.layers)
-    phase = (project.phase or "solid").lower()
+    native = (project.phase or "solid").lower()
+    if native not in TARGETS:
+        native = "solid"
+    if target == native:
+        return "volume", []
+    name = _LABEL[target]
+    return name, [{"step": "complement", "params": {"out": name}, "input": "volume"}]
 
-    if phase == "fluid":
-        fluid_name, prefix = "volume", []
-    else:
-        fluid_name = "fluide"
-        prefix = [{"step": "complement", "params": {"out": "fluide"}, "input": "volume"}]
+
+def build_presets(project, target: str = "fluid") -> list[dict[str, Any]]:
+    """Resout les chaines types pour un projet et une phase.
+
+    Rend une copie ou `{phase}` est remplace par le calque de la phase demandee
+    (et `{autre}` par celui de l'autre phase), precedee au besoin d'un
+    `complement`, et ou chaque sortie porte le suffixe de la phase. Chaque chaine
+    porte `available` et `missing` pour que l'interface sache ce qu'elle peut
+    lancer.
+    """
+    if target not in TARGETS:
+        raise ValueError(f"phase inconnue : {target!r} (attendu : {' ou '.join(TARGETS)})")
+
+    layers = set(project.layers)
+    suffix = _SUFFIX[target]
+    other = "solid" if target == "fluid" else "fluid"
+    names = {t: phase_layer(project, t)[0] for t in TARGETS}
+    makes = {t: phase_layer(project, t)[1] for t in TARGETS}
 
     out: list[dict[str, Any]] = []
     for preset in PRESETS:
-        steps = [_resolve(s, fluid_name) for s in preset["steps"]]
-        needs_fluid = any(
-            s.get("input") == fluid_name or "@" + fluid_name in str(s.get("params", {}))
-            for s in steps
-        )
-        if needs_fluid and fluid_name not in layers:
-            steps = [dict(s) for s in prefix] + steps
-        missing = [r for r in preset["requires"] if r not in layers]
+        if target not in preset.get("targets", TARGETS):
+            continue
+        rename = {
+            s["params"]["out"]: s["params"]["out"] + suffix
+            for s in preset["steps"]
+            if "out" in s.get("params", {})
+        }
+        # une chaine peut consommer les sorties d'une autre (plateau <- cellules)
+        for req in preset["requires"]:
+            rename.setdefault(req, req + suffix)
+
+        steps = [_resolve(s, names[target], names[other], rename) for s in preset["steps"]]
+
+        # une phase non native doit etre fabriquee avant d'etre lue
+        prefix: list[dict[str, Any]] = []
+        for t in (target, other):
+            name = names[t]
+            used = any(
+                s.get("input") == name or "@" + name in str(s.get("params", {})) for s in steps
+            )
+            if used and name not in layers:
+                prefix += [dict(s) for s in makes[t]]
+        steps = prefix + steps
+
+        missing = [rename[r] for r in preset["requires"] if rename[r] not in layers]
+        summary = preset.get(f"summary_{target}") or preset["summary"]
         out.append(
             {
-                **{k: v for k, v in preset.items() if k != "steps"},
+                **{
+                    k: v
+                    for k, v in preset.items()
+                    if k not in ("steps", "requires", "summary", "summary_solid", "summary_fluid")
+                },
+                "summary": summary,
+                "target": target,
+                "phase": _LABEL[target],
+                "requires": [rename[r] for r in preset["requires"]],
                 "steps": steps,
                 "missing": missing,
                 "available": not missing,
@@ -142,12 +212,24 @@ def build_presets(project) -> list[dict[str, Any]]:
     return out
 
 
-def _resolve(step: dict[str, Any], fluid_name: str) -> dict[str, Any]:
-    params = {
-        k: (v.replace(FLUID, fluid_name) if isinstance(v, str) else v)
-        for k, v in (step.get("params") or {}).items()
-    }
-    resolved = {"step": step["step"], "params": params}
+def _resolve(
+    step: dict[str, Any], phase_name: str, other_name: str, rename: dict[str, str]
+) -> dict[str, Any]:
+    def ref(value: Any) -> Any:
+        # seules les references `@calque` sont renommees dans les parametres :
+        # une valeur comme method="hilpert" n'est pas un nom de calque.
+        if not isinstance(value, str):
+            return value
+        v = value.replace(PHASE, phase_name).replace(OTHER, other_name)
+        if v.startswith("@"):
+            return "@" + rename.get(v[1:], v[1:])
+        return v
+
+    params = {k: ref(v) for k, v in (step.get("params") or {}).items()}
+    if "out" in params and isinstance(params["out"], str):
+        params["out"] = rename.get(params["out"], params["out"])
+    resolved: dict[str, Any] = {"step": step["step"], "params": params}
     if step.get("input"):
-        resolved["input"] = step["input"].replace(FLUID, fluid_name)
+        src = step["input"].replace(PHASE, phase_name).replace(OTHER, other_name)
+        resolved["input"] = rename.get(src, src)
     return resolved

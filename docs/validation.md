@@ -62,16 +62,43 @@ Aucun tomogramme ne permet cela. La vérité terrain porte donc sur la segmentat
 
 Sur les cellules entièrement incluses d'une mousse de Voronoï 128³ :
 
-| taux de remplissage | marqueurs | IoU médian | IoU > 0,7 |
-|---:|---:|---:|---:|
-| 0,40 | 85 | 0,908 | 88 % |
-| 0,55 | 85 | 0,908 | 88 % |
-| 0,65 | 84 | 0,885 | 62 % |
-| 0,85 | 82 | 0,731 | 50 % |
+| taux de remplissage | marqueurs | IoU médian | IoU > 0,7 | fragments |
+|---:|---:|---:|---:|---:|
+| 0,40 | 73 | 0,908 | 88 % | 10 |
+| 0,55 | 70 | 0,908 | 88 % | 9 |
+| 0,65 | 68 | 0,885 | 62 % | 9 |
+| 0,85 | 56 | 0,730 | 50 % | 9 |
 
 La dégradation au-delà de 0,8 est la sous-segmentation que la thèse annonce
-(fig. 3.3). Désactiver `keep_border_balls` fait tomber l'IoU médian à 0,55 :
-les cellules de bord perdent leur germe et avalent leurs voisines.
+(fig. 3.3).
+
+### Le taux de remplissage ne servait à rien
+
+Défaut mesuré tard, signalé par l'usage : la sur-segmentation persistait quelle
+que soit la valeur de `fill_ratio`. La cause est que les boules coupées par le
+bord étaient **exemptées du test** (`keep_border_balls=True`, comme
+`isUseBallsAtFace` d'iMorph), et qu'elles sont nombreuses : le seuil ne
+s'appliquait qu'à une minorité de candidats, et 0,45 comme 0,75 rendaient les
+mêmes 68 marqueurs.
+
+L'exemption compensait un artefact de mesure : le taux était calculé contre la
+sphère entière, donc une boule de bord parfaitement inscrite dans son pore
+affichait 0,42 parce que la moitié d'elle sortait de l'image. Le volume
+théorique est maintenant écrêté à la boîte ; la médiane des boules de bord passe
+de **0,42 à 0,99**, le seuil s'applique à tout le monde et le défaut de
+`keep_border_balls` devient `False`.
+
+À marqueurs mesurés sur trois mousses (128³, seuil 0,65), fragments = cellules
+prédites de moins de 15 % du volume médian :
+
+| mousse | exemption (ancien) | écrêtage (nouveau) |
+|---|---:|---:|
+| 80 cellules | 68 marqueurs, 12 fragments | 54 marqueurs, **7** |
+| 106 cellules | 84 marqueurs, 17 fragments | 68 marqueurs, **9** |
+| 212 cellules | 172 marqueurs, 33 fragments | 136 marqueurs, **11** |
+
+L'IoU médian des cellules intérieures est inchangé (0,907 → 0,908). Ce sont des
+faux germes qui disparaissent, pas des cellules.
 
 ### Le repli sans numba reproduit la figure 3.4
 

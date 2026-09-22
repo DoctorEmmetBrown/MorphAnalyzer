@@ -403,11 +403,83 @@ def test_presets_run_and_segment_correctly(foam_project):
             proj._load_manifest()
 
     assert set(ran) == {"granulo", "cellules", "plateau", "drainage"}
-    assert {"fluide", "distance", "ouverture", "marqueurs", "cellules"} <= set(proj.layers)
-    assert {"granulometrie", "morphometrie", "cols", "drainage_courbe"} <= set(proj.tables)
+    assert {
+        "fluide",
+        "distance_fluide",
+        "ouverture_fluide",
+        "marqueurs_fluide",
+        "cellules_fluide",
+    } <= set(proj.layers)
+    assert {
+        "granulometrie_fluide",
+        "morphometrie_fluide",
+        "cols_fluide",
+        "drainage_fluide_courbe",
+    } <= set(proj.tables)
 
-    ious = _iou_against_voronoi(np.asarray(proj.layer("cellules")), truth)
+    ious = _iou_against_voronoi(np.asarray(proj.layer("cellules_fluide")), truth)
     assert np.median(ious) > 0.85, f"IoU median {np.median(ious):.3f} — la chaine est fausse"
+
+
+def test_the_two_phases_do_not_overwrite_each_other(foam_project):
+    """Le reproche d'usage : deux fois le meme calcul sur deux phases.
+
+    Avant, les deux chaines ecrivaient dans `distance` et la seconde ecrasait la
+    premiere — on ne pouvait regarder qu'une carte. Les sorties portent
+    desormais le suffixe de leur phase, et les deux coexistent.
+    """
+    import warnings as _w
+
+    from morphanalyzer.webapp.presets import build_presets
+
+    proj, _ = foam_project
+    runner = JobRunner(proj)
+    granulo = next(p for p in build_presets(proj, "solid") if p["id"] == "granulo")
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        job = runner.run_sync(granulo["steps"])
+    assert job.status == "done", job.error
+    proj._load_manifest()
+
+    assert {"distance_fluide", "distance_solide"} <= set(proj.layers)
+    d_fluide = np.asarray(proj.layer("distance_fluide"))
+    d_solide = np.asarray(proj.layer("distance_solide"))
+    # deux cartes distinctes, et chacune est nulle la ou l'autre est portee
+    assert not np.array_equal(d_fluide, d_solide)
+    assert np.all(d_fluide[d_solide > 0] == 0)
+    assert np.all(d_solide[d_fluide > 0] == 0)
+
+
+def test_presets_that_have_no_meaning_on_the_solid_are_not_offered(foam_project):
+    """On ne draine pas une matrice, et le squelette de Plateau est celui du solide."""
+    from morphanalyzer.webapp.presets import build_presets
+
+    proj, _ = foam_project
+    assert {p["id"] for p in build_presets(proj, "solid")} == {"granulo", "cellules"}
+    assert {p["id"] for p in build_presets(proj, "fluid")} == {
+        "granulo",
+        "cellules",
+        "plateau",
+        "drainage",
+    }
+    with pytest.raises(ValueError, match="phase inconnue"):
+        build_presets(proj, "gaz")
+
+
+def test_the_plateau_skeleton_lives_in_the_solid(tmp_path):
+    """Plateau melange les deux phases : squelette dans le solide, cellules du fluide."""
+    from morphanalyzer.webapp.presets import build_presets
+
+    vol = ma.phantoms.voronoi_foam(shape=(32,) * 3, n_cells=4, strut=3.0, min_seed_gap=14.0, seed=0)
+    fluide = Project.create(
+        tmp_path / "f", volume=ma.Volume(vol.fluid, voxel_size=1.0), phase="fluid"
+    )
+    plateau = next(p for p in build_presets(fluide, "fluid") if p["id"] == "plateau")
+    # le projet porte le fluide : il faut fabriquer le solide avant de squeletter
+    assert plateau["steps"][0]["step"] == "complement"
+    assert plateau["steps"][0]["params"]["out"] == "solide"
+    assert plateau["steps"][1]["input"] == "solide"
+    assert plateau["steps"][1]["params"]["cells"] == "@cellules_fluide"
 
 
 def test_the_watershed_relief_is_the_distance_map(foam_project):
@@ -417,8 +489,10 @@ def test_the_watershed_relief_is_the_distance_map(foam_project):
     proj, _ = foam_project
     cellules = next(p for p in build_presets(proj) if p["id"] == "cellules")
     ws = next(s for s in cellules["steps"] if s["step"] == "watershed_cells")
-    assert ws["input"] == "distance"
-    assert ws["params"]["markers"] == "@marqueurs"
+    assert ws["input"] == "distance_fluide"
+    assert ws["params"]["markers"] == "@marqueurs_fluide"
+    # et le masque est la meme phase que les marqueurs, pas l'autre
+    assert ws["params"]["mask"] == "@fluide"
 
 
 def test_presets_follow_the_phase_of_the_project(tmp_path):
@@ -442,6 +516,12 @@ def test_preset_route(served):
     presets = client.get("/api/presets").json()
     assert {p["id"] for p in presets} == {"granulo", "cellules", "plateau", "drainage"}
     assert all("steps" in p and "available" in p for p in presets)
+    assert all(p["phase"] == "fluide" for p in presets)
+
+    solide = client.get("/api/presets?target=solid").json()
+    assert {p["id"] for p in solide} == {"granulo", "cellules"}
+    assert all(s["params"]["out"].endswith("_solide") for s in solide[0]["steps"])
+    assert client.get("/api/presets?target=gaz").status_code == 400
 
 
 def test_step_input_is_replayable(tmp_path):

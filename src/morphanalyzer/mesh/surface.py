@@ -297,7 +297,20 @@ def decimate(mesh: Mesh, *, target_reduction: float = 0.5, method: str = "auto")
         trimesh = require("trimesh", reason="la decimation de maillage")
         tm = trimesh.Trimesh(vertices=v, faces=f, process=False)
         keep = max(4, int(round(len(f) * (1.0 - target_reduction))))
-        out = tm.simplify_quadric_decimation(face_count=keep)
+        try:
+            out = tm.simplify_quadric_decimation(face_count=keep)
+        except ImportError as exc:  # pragma: no cover - depend de la version
+            # trimesh >= 4.1 n'implemente plus la decimation : sa methode n'est
+            # qu'un enrobage de `fast_simplification`. Sans lui les deux
+            # branches echouent, et l'erreur brute nomme un module que
+            # l'appelant n'a jamais demande.
+            from morphanalyzer._deps import MissingDependency
+
+            raise MissingDependency(
+                "'fast_simplification' est requis pour la decimation de "
+                "maillage : trimesh >= 4.1 ne fait qu'enrober cette "
+                'bibliotheque. Installer avec : pip install "morphanalyzer[mesh]"'
+            ) from exc
         nv, nf = np.asarray(out.vertices), np.asarray(out.faces)
     else:
         raise ValueError("method doit valoir 'auto', 'fast_simplification' ou 'trimesh'")

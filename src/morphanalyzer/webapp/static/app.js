@@ -19,6 +19,7 @@ const S = {
   poll: null,
   table: null,
   presets: [],
+  presetTarget: "fluid",   // les chaines types tournent sur le fluide ou le solide
   chartKind: "line",
   logX: false,
   reverseX: false,
@@ -341,11 +342,12 @@ async function loadPresets() {
   // que la suite de tests rejoue contre la verite terrain. Une chaine ecrite
   // dans l'interface seule ne serait verifiee par personne.
   try {
-    S.presets = await api("/api/presets");
+    S.presets = await api("/api/presets?target=" + encodeURIComponent(S.presetTarget));
   } catch (e) {
     S.presets = [];
     return;
   }
+  for (const b of $$("#preset-phase button")) b.classList.toggle("on", b.dataset.target === S.presetTarget);
   const box = $("#presets");
   box.innerHTML = "";
   for (const p of S.presets) {
@@ -353,7 +355,8 @@ async function loadPresets() {
     b.className = "chip";
     b.textContent = p.label;
     b.title = p.available
-      ? `${p.summary}\n${p.steps.map((s) => s.step).join(" → ")}`
+      ? `${p.summary}\nSur la phase ${p.phase} — sorties suffixées _${p.phase}.\n`
+        + p.steps.map((s) => s.step).join(" → ")
       : `${p.summary}\nIndisponible : il manque ${p.missing.join(", ")}`;
     b.disabled = !p.available;
     b.addEventListener("click", () => {
@@ -362,6 +365,12 @@ async function loadPresets() {
       toast(`${S.queue.length} étapes ajoutées à la file`);
     });
     box.appendChild(b);
+  }
+  if (!S.presets.length) {
+    const p = document.createElement("span");
+    p.className = "dim small";
+    p.textContent = "aucune chaîne type sur cette phase";
+    box.appendChild(p);
   }
 }
 
@@ -449,6 +458,20 @@ function renderParams(name) {
     row.className = "param";
     const hint = (p.annotation || "") + (p.required ? " (requis)" : "");
     row.innerHTML = `<label title="${hint}">${p.name}</label>`;
+
+    // un parametre booleen se choisit, il ne se tape pas : « False » saisi a la
+    // main devenait une chaine, que Python juge vraie.
+    if ((p.annotation || "").includes("bool")) {
+      const sel = document.createElement("select");
+      sel.dataset.p = p.name;
+      const def = p.default === null || p.default === undefined ? "défaut" : String(p.default);
+      sel.innerHTML = `<option value="">défaut (${def})</option>` +
+                      `<option value="true">true</option><option value="false">false</option>`;
+      row.appendChild(sel);
+      box.appendChild(row);
+      continue;
+    }
+
     const wrap = document.createElement("div");
     wrap.className = "with-layer";
     const inp = document.createElement("input");
@@ -468,7 +491,7 @@ function renderParams(name) {
 
 function collectParams() {
   const out = {};
-  for (const inp of $$("#step-params input")) {
+  for (const inp of $$("#step-params [data-p]")) {
     const v = inp.value.trim();
     if (!v) continue;
     out[inp.dataset.p] = parseValue(v);
@@ -478,9 +501,12 @@ function collectParams() {
 
 function parseValue(v) {
   if (v.startsWith("@")) return v;
-  if (v === "true") return true;
-  if (v === "false") return false;
-  if (v === "null" || v === "none") return null;
+  const low = v.toLowerCase();
+  // insensible a la casse : "False" tapé avec une majuscule devenait la chaîne
+  // "False", que Python juge vraie — donc l'exact contraire de ce qu'on voulait.
+  if (low === "true" || low === "vrai" || low === "oui") return true;
+  if (low === "false" || low === "faux" || low === "non") return false;
+  if (low === "null" || low === "none" || low === "aucun") return null;
   try { return JSON.parse(v); } catch (e) { return v; }
 }
 
@@ -828,6 +854,16 @@ function wire() {
     drawChart();
   });
   $("#hist-layer").addEventListener("change", (e) => drawHistogram(e.target.value));
+
+  // Phase des chaines types. Les deux jeux de resultats coexistent : les sorties
+  // portent le suffixe de leur phase, une granulometrie du solide n'ecrase plus
+  // celle du fluide.
+  $("#preset-phase").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-target]");
+    if (!b || b.dataset.target === S.presetTarget) return;
+    S.presetTarget = b.dataset.target;
+    await loadPresets();
+  });
 
   window.addEventListener("resize", debounce(() => {
     if (S.tableData && !$("#tab-curves").hidden) drawChart();

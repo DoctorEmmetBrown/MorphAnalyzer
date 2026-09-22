@@ -56,8 +56,11 @@ La chaine `distance -> boules maximales -> marqueurs -> watershed` est portee et
 validee contre la partition de Voronoi exacte : **IoU median 0,91** sur les
 cellules entierement incluses, 88 % au-dessus de 0,7. La degradation au-dela de
 80 % de remplissage est bien la sous-segmentation que la these annonce
-(fig. 3.3), et desactiver la conservation des boules de bord fait tomber l'IoU a
-0,55 — les cellules de bord perdent leur germe et avalent leurs voisines.
+(fig. 3.3). Ecart assume avec iMorph sur les boules de bord : au lieu de les
+exempter du test de remplissage (`isUseBallsAtFace`), on ecrete leur volume
+theorique a la boite, ce qui rend le seuil applicable a tous les candidats. A IoU
+median inchange (0,908), les faux germes tombent de 17 a 9 sur le fantome de
+reference.
 
 Un ecart a signaler sur les **candidats** de la granulometrie : iMorph parcourait
 tous les voxels du fluide, en elaguant ceux dont la boule est circonscrite a une

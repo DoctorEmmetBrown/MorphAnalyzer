@@ -119,13 +119,32 @@ que dans le JavaScript de l'interface n'est vérifiée par personne.
 Une chaîne dont il manque une entrée est grisée : le squelette de Plateau
 attend que les cellules existent.
 
-### La phase, et le champ « entrée »
+### La phase
+
+Un bouton **fluide / solide** commande la phase sur laquelle la chaîne tourne.
+C'est le même geste que dans iMorph, qui donnait les deux : la granulométrie du
+fluide est une distribution de taille de pore, celle du solide une distribution
+d'épaisseur de brin.
+
+Les deux jeux de résultats **coexistent**. Toutes les sorties portent le suffixe
+de leur phase — `distance_fluide` et `distance_solide`, `granulometrie_fluide`
+et `granulometrie_solide` — donc on peut les empiler dans le slicer et
+superposer leurs courbes. Sans ce suffixe, le second calcul écrasait le premier
+et on ne pouvait regarder qu'une carte.
+
+Deux chaînes n'existent que sur le fluide : on ne draine pas une matrice, et la
+loi de Plateau décrit les parois d'une mousse — son squelette vit dans le
+solide, mais les cellules qui s'y rencontrent sont celles du fluide. C'est la
+seule chaîne qui touche les deux phases à la fois, et elle insère le
+`complement` qu'il lui faut.
 
 La convention de la bibliothèque est **`True` = solide**, alors que presque
 toute la chaîne morphologique se calcule dans le **fluide**. Le projet retient
 donc ce que contient son calque `volume` — `phase: solid` par défaut — et les
-chaînes types préfixent au besoin une étape `complement` qui produit le calque
-`fluide`.
+chaînes types préfixent au besoin une étape `complement` qui produit la phase
+demandée.
+
+### Le champ « entrée »
 
 Chaque étape reçoit par défaut la sortie de la précédente. Le champ **entrée**
 permet de la faire repartir d'un calque nommé, ce qui est indispensable dès
