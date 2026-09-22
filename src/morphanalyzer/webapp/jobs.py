@@ -120,6 +120,14 @@ class JobRunner:
                 name = entry["step"]
                 raw = dict(entry.get("params") or {})
                 out_name = raw.pop("out", None) or name
+                if out_name in self.project.layers:
+                    # Remplacer un calque est legitime — relancer une etape avec
+                    # d'autres parametres, par exemple. Le faire en silence ne
+                    # l'est pas : c'est ainsi qu'un calcul sur la seconde phase
+                    # effacait le premier sans que rien ne le dise.
+                    job.warnings.append(
+                        f"le calque « {out_name} » existait deja : il a ete remplace"
+                    )
                 source = entry.get("input") or raw.pop("input", None)
                 if source:
                     current = np.asarray(self.project.layer(source))

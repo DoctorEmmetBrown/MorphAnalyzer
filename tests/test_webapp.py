@@ -341,6 +341,26 @@ def test_warnings_are_captured_and_shown(tmp_path):
         unregister("_test_bavard")
 
 
+def test_replacing_a_layer_is_announced(tmp_path):
+    """Ecraser un calque est permis, le faire en silence ne l'est pas.
+
+    C'est par la que le deuxieme calcul effacait le premier : deux etapes
+    lancees sans nom de sortie portent le nom de l'etape, donc le meme.
+    """
+    vol = ma.phantoms.sphere(shape=(16,) * 3, radius=5.0)
+    proj = Project.create(tmp_path / "p", volume=vol)
+    runner = JobRunner(proj)
+    step = [{"step": "distance_transform", "params": {"out": "distance"}}]
+
+    first = runner.run_sync(step)
+    assert first.status == "done", first.error
+    assert first.warnings == []
+
+    again = runner.run_sync(step)
+    assert again.status == "done", again.error
+    assert any("distance" in w and "remplace" in w for w in again.warnings)
+
+
 def test_serving_a_plain_directory_is_refused(tmp_path):
     """Servir un dossier quelconque ne doit pas y creer un projet en douce."""
     with pytest.raises(FileNotFoundError, match="morphanalyzer new"):

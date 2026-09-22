@@ -18,6 +18,7 @@ const S = {
   job: null,
   poll: null,
   table: null,
+  tableNames: [],
   presets: [],
   presetTarget: "fluid",   // les chaines types tournent sur le fluide ou le solide
   chartKind: "line",
@@ -93,6 +94,7 @@ async function loadProject() {
   renderHistory(p.history);
   renderInfo(p);
   renderTables(p.tables);
+  S.tableNames = p.tables.map((t) => t.name);
 
   const n = p.shape ? p.shape[S.axis] : 0;
   $("#slice").max = Math.max(0, n - 1);
@@ -421,6 +423,14 @@ function renderStepList(filter) {
   }
 }
 
+function freeName(base) {
+  const taken = new Set([...S.layers, ...(S.tableNames || [])]);
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n += 1;
+  return `${base}_${n}`;
+}
+
 function renderParams(name) {
   const st = S.steps.find((s) => s.name === name);
   const box = $("#step-params");
@@ -430,8 +440,11 @@ function renderParams(name) {
 
   const outRow = document.createElement("div");
   outRow.className = "param";
+  // Pre-remplir avec un nom LIBRE. Sans cela, relancer la meme etape sur une
+  // autre phase reecrivait dans le calque du meme nom, et la premiere carte
+  // disparaissait sans un mot.
   outRow.innerHTML = `<label title="nom du calque ou de la table produite">out</label>` +
-                     `<input type="text" data-p="out" placeholder="${name}">`;
+                     `<input type="text" data-p="out" value="${freeName(name)}">`;
   box.appendChild(outRow);
 
   const inRow = document.createElement("div");

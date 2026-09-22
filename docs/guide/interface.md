@@ -145,7 +145,14 @@ donc ce que contient son calque `volume` — `phase: solid` par défaut — et l
 chaînes types préfixent au besoin une étape `complement` qui produit la phase
 demandée.
 
-### Le champ « entrée »
+### Les champs « out » et « entrée »
+
+Le champ **out** est pré-rempli avec un nom **libre** : si `distance_transform`
+existe déjà, il propose `distance_transform_2`. Sans cela, relancer la même
+étape — typiquement sur l'autre phase — réécrivait dans le calque du même nom et
+la première carte disparaissait sans un mot. Écraser reste possible, en tapant
+le nom existant, et l'exécution le signale alors dans le journal.
+
 
 Chaque étape reçoit par défaut la sortie de la précédente. Le champ **entrée**
 permet de la faire repartir d'un calque nommé, ce qui est indispensable dès
