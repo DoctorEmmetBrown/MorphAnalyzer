@@ -153,6 +153,7 @@ def main() -> None:  # pragma: no cover - point d'entree
         unit: str = "um",
         name: str | None = None,
         binarize: bool = False,
+        phase: str = "solid",
     ) -> None:
         """Cree un dossier de projet, a partir d'un volume ou d'un fantome.
 
@@ -183,7 +184,13 @@ def main() -> None:  # pragma: no cover - point d'entree
                 vol = filters.threshold_otsu(vol)
 
         proj = Project.create(
-            directory, volume=vol, name=name, voxel_size=voxel_size, unit=unit, exist_ok=True
+            directory,
+            volume=vol,
+            name=name,
+            voxel_size=voxel_size,
+            unit=unit,
+            phase=phase,
+            exist_ok=True,
         )
         typer.echo(f"projet cree : {proj.path}")
         typer.echo(f"  {proj.shape} voxels, {proj.voxel_size} {proj.unit}")

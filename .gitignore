@@ -24,5 +24,9 @@ tools/oracle/build/
 tools/oracle/ref/
 .venv-test/
 site/
+# projets d'essai crees a la racine par la CLI
+/essai/
+/mousse/
+/demo/
 notebooks/*.html
 notebooks/_check/

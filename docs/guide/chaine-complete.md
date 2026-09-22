@@ -102,6 +102,47 @@ Il n'y a **pas de ligne de partage matérialisée** : chaque voxel du masque re�
 un label, la frontière est implicite. Cela évite d'avoir à décider à quelle
 cellule appartient un voxel de digue.
 
+## La même chaîne en YAML — et son piège
+
+Dans un pipeline déclaratif, chaque étape reçoit par défaut **la sortie de la
+précédente**. C'est ce qu'on veut pour une chaîne linéaire, et c'est faux dès
+qu'une étape a besoin d'un résultat plus ancien. Le cas qui fait mal :
+
+```
+distance_transform  →  distance     le volume courant devient la distance
+cell_markers        →  marqueurs    il devient les marqueurs
+watershed_cells                     il lui faut la DISTANCE comme relief
+```
+
+Sans précaution, la dernière étape inonde l'image des marqueurs. Elle rend une
+partition qui **ressemble** à des cellules — c'est à peu près un Voronoï
+euclidien des marqueurs — et l'IoU contre la partition exacte tombe de **0,908 à
+0,636**. Rien ne plante, rien n'avertit, et la figure a l'air correcte.
+
+D'où le champ `input`, qui nomme le calque passé en premier argument :
+
+```yaml
+steps:
+  - {complement: {out: fluide, input: volume}}
+  - {distance_transform: {out: distance, input: fluide}}
+  - {cell_markers: {out: marqueurs, input: fluide, distance: "@distance", fill_ratio: 0.55}}
+  - {watershed_cells: {out: cellules, input: distance, markers: "@marqueurs", mask: "@fluide"}}
+  - {cell_morphometry: {out: morphometrie, input: cellules}}
+  - {throats: {out: cols, input: cellules}}
+```
+
+```bash
+morphanalyzer run chaine.yaml volume.tif --project mon_echantillon/
+```
+
+Les valeurs `"@calque"` désignent un tableau du projet — c'est la seule façon de
+passer une image en paramètre depuis un fichier de configuration.
+
+Cette chaîne est celle que l'interface propose sous « cellules & cols », et un
+test la rejoue à chaque exécution de la suite en vérifiant son IoU contre la
+partition de Voronoï exacte. Une chaîne écrite quelque part sans être vérifiée
+nulle part est une chaîne fausse en puissance.
+
 !!! warning "Une poche de fluide sans marqueur reste à zéro"
     L'inondation ne peut pas l'atteindre. C'est correct, mais il faut le savoir
     avant de sommer des volumes. Vérifier :

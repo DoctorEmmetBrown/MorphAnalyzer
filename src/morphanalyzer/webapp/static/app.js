@@ -18,6 +18,7 @@ const S = {
   job: null,
   poll: null,
   table: null,
+  presets: [],
   chartKind: "line",
   logX: false,
   reverseX: false,
@@ -335,6 +336,35 @@ const probe = debounce(async (c, ev) => {
 
 /* ───────────────────────────── pipeline ───────────────────────────── */
 
+async function loadPresets() {
+  // Les chaines types viennent du serveur : c'est la meme definition que celle
+  // que la suite de tests rejoue contre la verite terrain. Une chaine ecrite
+  // dans l'interface seule ne serait verifiee par personne.
+  try {
+    S.presets = await api("/api/presets");
+  } catch (e) {
+    S.presets = [];
+    return;
+  }
+  const box = $("#presets");
+  box.innerHTML = "";
+  for (const p of S.presets) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = p.label;
+    b.title = p.available
+      ? `${p.summary}\n${p.steps.map((s) => s.step).join(" → ")}`
+      : `${p.summary}\nIndisponible : il manque ${p.missing.join(", ")}`;
+    b.disabled = !p.available;
+    b.addEventListener("click", () => {
+      S.queue = p.steps.map((s) => ({ ...s, params: { ...s.params } }));
+      renderQueue();
+      toast(`${S.queue.length} étapes ajoutées à la file`);
+    });
+    box.appendChild(b);
+  }
+}
+
 async function loadSteps() {
   S.steps = await api("/api/steps");
   renderStepList("");
@@ -395,6 +425,25 @@ function renderParams(name) {
                      `<input type="text" data-p="out" placeholder="${name}">`;
   box.appendChild(outRow);
 
+  const inRow = document.createElement("div");
+  inRow.className = "param";
+  inRow.innerHTML =
+    `<label title="calque passé en premier argument ; par défaut, la sortie de l'étape précédente">entrée</label>`;
+  const inWrap = document.createElement("div");
+  inWrap.className = "with-layer";
+  const inInput = document.createElement("input");
+  inInput.type = "text";
+  inInput.dataset.p = "input";
+  inInput.placeholder = "étape précédente";
+  inWrap.appendChild(inInput);
+  const inPick = document.createElement("select");
+  inPick.innerHTML = `<option value="">@</option>` +
+    S.layers.map((n) => `<option value="${n}">${n}</option>`).join("");
+  inPick.addEventListener("change", () => { if (inPick.value) { inInput.value = inPick.value; inPick.value = ""; } });
+  inWrap.appendChild(inPick);
+  inRow.appendChild(inWrap);
+  box.appendChild(inRow);
+
   for (const p of st.parameters) {
     const row = document.createElement("div");
     row.className = "param";
@@ -443,9 +492,11 @@ function renderQueue() {
     const params = Object.entries(entry.params)
       .filter(([k]) => k !== "out")
       .map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
-    li.innerHTML = `<span class="qname">${entry.step}</span>` +
-                   `<span class="qparams">${params || ""}</span>` +
-                   `<span class="badge">${entry.params.out || entry.step}</span>`;
+    li.innerHTML =
+      (entry.input ? `<span class="badge" title="calque d'entrée">${entry.input} →</span>` : "") +
+      `<span class="qname">${entry.step}</span>` +
+      `<span class="qparams">${params || ""}</span>` +
+      `<span class="badge">${entry.params.out || entry.step}</span>`;
     const del = document.createElement("button");
     del.textContent = "✕";
     del.title = "retirer";
@@ -481,6 +532,7 @@ function pollJob() {
         clearInterval(S.poll);
         $("#run").disabled = S.queue.length === 0;
         await loadProject();
+        await loadPresets();
         if (j.status === "done") {
           if (j.warnings?.length) toast("⚠ " + j.warnings[0], true);
           else toast(`terminé en ${j.elapsed.toFixed(1)} s`);
@@ -521,26 +573,6 @@ function renderJob(j) {
   }
   ol.scrollTop = ol.scrollHeight;
 }
-
-/* Chaines types : ce que l'on enchaine presque toujours. Elles partent du
- * calque d'entree choisi, qui doit etre le masque de la phase fluide. */
-const PRESETS = {
-  granulo: [
-    { step: "distance_transform", params: { out: "distance" } },
-    { step: "aperture_map", params: { out: "ouverture", n_radii: 24 } },
-    { step: "pore_size_distribution", params: { out: "granulometrie", bins: 30 } },
-  ],
-  cellules: [
-    { step: "distance_transform", params: { out: "distance" } },
-    { step: "cell_markers", params: { out: "marqueurs", distance: "@distance", fill_ratio: 0.55 } },
-    { step: "watershed_cells", params: { out: "cellules", markers: "@marqueurs", mask: "@volume" } },
-    { step: "cell_morphometry", params: { out: "morphometrie" } },
-    { step: "throats", params: { out: "cols" } },
-  ],
-  drainage: [
-    { step: "drainage", params: { out: "drainage", method: "hilpert", step: 0.5, surface_tension: 0.0728 } },
-  ],
-};
 
 /* ───────────────────────────── tables ─────────────────────────────── */
 
@@ -741,17 +773,13 @@ function wire() {
   $("#step-add").addEventListener("click", () => {
     const name = $("#step-picker").value;
     if (!name) return;
-    S.queue.push({ step: name, params: collectParams() });
+    const params = collectParams();
+    const source = params.input;
+    delete params.input;
+    S.queue.push(source ? { step: name, params, input: source } : { step: name, params });
     renderQueue();
   });
   $("#queue-clear").addEventListener("click", () => { S.queue = []; renderQueue(); });
-  $$("[data-preset]").forEach((b) =>
-    b.addEventListener("click", () => {
-      S.queue = PRESETS[b.dataset.preset].map((s) => ({ step: s.step, params: { ...s.params } }));
-      renderQueue();
-      toast(`${S.queue.length} étapes ajoutées à la file`);
-    })
-  );
   $("#run").addEventListener("click", runQueue);
   $("#pipeline-replay").addEventListener("click", () => window.open("/api/pipeline.yaml", "_blank"));
 
@@ -814,6 +842,7 @@ function wire() {
   try {
     await loadProject();
     await loadSteps();
+    await loadPresets();
     renderQueue();
     $("#viewport").focus();
   } catch (e) {

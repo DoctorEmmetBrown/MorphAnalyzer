@@ -120,6 +120,9 @@ class JobRunner:
                 name = entry["step"]
                 raw = dict(entry.get("params") or {})
                 out_name = raw.pop("out", None) or name
+                source = entry.get("input") or raw.pop("input", None)
+                if source:
+                    current = np.asarray(self.project.layer(source))
                 fn = get_step(name)
                 params = resolve_params(raw, self.project)
                 t0 = time.perf_counter()
@@ -132,8 +135,16 @@ class JobRunner:
                     res = fn(current, **params)
                 dt = time.perf_counter() - t0
                 notes = [str(w.message) for w in caught]
-                current, kept = self._store(job, name, out_name, res, raw, dt, current, notes)
-                entry = {"step": name, "params": raw, "seconds": round(dt, 3), "produced": kept}
+                current, kept = self._store(
+                    job, name, out_name, res, raw, dt, current, notes, source
+                )
+                entry = {
+                    "step": name,
+                    "params": raw,
+                    "input": source,
+                    "seconds": round(dt, 3),
+                    "produced": kept,
+                }
                 if notes:
                     entry["warnings"] = notes
                     job.warnings.extend(notes)
@@ -157,6 +168,7 @@ class JobRunner:
         dt: float,
         current,
         notes: list[str] | None = None,
+        source: str | None = None,
     ):
         """Range le resultat d'une etape selon sa nature.
 
@@ -170,6 +182,7 @@ class JobRunner:
         montrer d'un drainage.
         """
         produced: list[str] = []
+        names: list[str] = []  # tout ce qui a ete ecrit, calque ou table
         new_current = current
         with self.lock:
             for kind, name, value in unpack(res, out_name):
@@ -177,6 +190,7 @@ class JobRunner:
                     arr = as_array(value)
                     self.project.add_layer(name, arr, step=step)
                     job.outputs.append(name)
+                    names.append(name)
                     produced.append(f"calque « {name} »")
                     if new_current is current:
                         new_current = arr
@@ -184,9 +198,11 @@ class JobRunner:
                     frame = value if isinstance(value, pd.DataFrame) else value.to_frame()
                     self.project.add_table(name, frame, step=step)
                     job.tables.append(name)
+                    names.append(name)
                     produced.append(f"table « {name} » ({len(frame)} lignes)")
                 else:
                     job.results[name] = value
+                    names.append(name)
                     produced.append(f"{name} = {value}")
             note = "; ".join(produced) or "aucune sortie"
             if notes:
@@ -194,9 +210,10 @@ class JobRunner:
             self.project.log_step(
                 step,
                 params,
-                outputs=job.outputs[-len(produced) :] if produced else [],
+                outputs=names,
                 duration=dt,
                 note=note,
+                input=source,
             )
         return new_current, ", ".join(produced) or "—"
 

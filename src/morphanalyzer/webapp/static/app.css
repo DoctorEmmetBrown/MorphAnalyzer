@@ -154,6 +154,8 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius
         border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer;
         text-decoration: none; display: inline-block; }
 .chip:hover { border-color: var(--border-strong); color: var(--text); }
+.chips { display: contents; }
+.chip[disabled] { opacity: .45; cursor: not-allowed; }
 .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 550; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }

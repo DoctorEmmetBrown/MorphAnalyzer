@@ -110,8 +110,27 @@ Le panneau de gauche liste les 50 étapes enregistrées, groupées par module, a
 leurs paramètres introspectés depuis les signatures Python. On empile des étapes
 dans une file, on choisit le calque d'entrée, on exécute.
 
-Trois **chaînes types** évitent de tout monter à la main : granulométrie,
-cellules & cols, drainage.
+Quatre **chaînes types** évitent de tout monter à la main : granulométrie,
+cellules & cols, squelette de Plateau, drainage. Elles sont servies par
+`/api/presets`, donc définies **une seule fois**, côté serveur — et la suite de
+tests les rejoue contre la vérité terrain d'un fantôme. Une chaîne qui ne vit
+que dans le JavaScript de l'interface n'est vérifiée par personne.
+
+Une chaîne dont il manque une entrée est grisée : le squelette de Plateau
+attend que les cellules existent.
+
+### La phase, et le champ « entrée »
+
+La convention de la bibliothèque est **`True` = solide**, alors que presque
+toute la chaîne morphologique se calcule dans le **fluide**. Le projet retient
+donc ce que contient son calque `volume` — `phase: solid` par défaut — et les
+chaînes types préfixent au besoin une étape `complement` qui produit le calque
+`fluide`.
+
+Chaque étape reçoit par défaut la sortie de la précédente. Le champ **entrée**
+permet de la faire repartir d'un calque nommé, ce qui est indispensable dès
+qu'une étape a besoin d'un résultat plus ancien — le watershed veut la carte de
+distance comme relief, pas les marqueurs que l'étape d'avant vient de produire.
 
 Les paramètres qui attendent un **tableau** — les marqueurs d'un watershed, un
 masque — se désignent par `@nom_de_calque`. Le menu à droite du champ les

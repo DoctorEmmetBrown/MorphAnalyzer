@@ -10,12 +10,18 @@ from morphanalyzer.filters.binarize import (
     threshold_otsu,
     threshold_value,
 )
-from morphanalyzer.filters.cleanup import fill_holes, keep_largest_component, remove_small_objects
+from morphanalyzer.filters.cleanup import (
+    complement,
+    fill_holes,
+    keep_largest_component,
+    remove_small_objects,
+)
 from morphanalyzer.filters.denoise import denoise_nl_means, median
 from morphanalyzer.filters.morpho import close_binary, dilate, erode, open_binary
 from morphanalyzer.filters.ridges import hessian_features
 
 __all__ = [
+    "complement",
     "threshold_otsu",
     "threshold_value",
     "threshold_hysteresis",

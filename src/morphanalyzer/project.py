@@ -45,6 +45,16 @@ FORMAT_VERSION = 1
 KINDS = ("grey", "binary", "labels", "scalar")
 
 
+#: Ce qu'on versionne d'un projet : la recette et les resultats, pas les gigaoctets.
+GITIGNORE = """\
+# Les calques sont des tableaux binaires : volumineux, et reconstructibles a
+# partir du manifeste (`morphanalyzer run pipeline.yaml ... --project .`).
+# On versionne donc le manifeste, les tables et les exports — la recette et les
+# resultats — mais pas les calques.
+layers/
+"""
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -124,9 +134,19 @@ class Project:
         voxel_size=None,
         unit: str = "um",
         source: str | None = None,
+        phase: str | None = None,
         exist_ok: bool = False,
     ) -> Project:
-        """Cree un dossier de projet, avec eventuellement son volume d'entree."""
+        """Cree un dossier de projet, avec eventuellement son volume d'entree.
+
+        Parameters
+        ----------
+        phase
+            Ce que contient le calque `volume` : `"solid"` (defaut, convention
+            `True = solide`) ou `"fluid"`. Les chaines types s'en servent pour
+            savoir s'il faut changer de phase avant de calculer une distance a
+            la paroi — elle se mesure dans le fluide, pas dans le solide.
+        """
         path = Path(path)
         if (path / MANIFEST_NAME).exists() and not exist_ok:
             raise FileExistsError(
@@ -151,11 +171,13 @@ class Project:
             "voxel_size": [float(v) for v in voxel_size],
             "unit": unit,
             "source": source,
+            "phase": (phase or "solid").lower(),
             "layers": {},
             "tables": {},
             "history": [],
         }
         (path / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+        (path / ".gitignore").write_text(GITIGNORE)
         proj = cls(path)
         if volume is not None:
             arr = as_array(volume)
@@ -199,6 +221,11 @@ class Project:
     @property
     def unit(self) -> str:
         return self._manifest.get("unit", "um")
+
+    @property
+    def phase(self) -> str:
+        """Ce que contient le calque `volume` : `"solid"` ou `"fluid"`."""
+        return self._manifest.get("phase", "solid")
 
     @property
     def history(self) -> list[dict[str, Any]]:
@@ -343,12 +370,14 @@ class Project:
         outputs: list[str] | None = None,
         duration: float | None = None,
         note: str = "",
+        input: str | None = None,
     ) -> None:
         """Inscrit une etape executee, pour que le projet raconte ce qu'il a subi."""
         self._manifest.setdefault("history", []).append(
             {
                 "step": step,
                 "params": {k: _jsonable(v) for k, v in params.items()},
+                "input": input,
                 "outputs": outputs or [],
                 "duration": duration,
                 "note": note,
@@ -368,7 +397,9 @@ class Project:
             params = dict(entry.get("params", {}))
             out = entry.get("outputs") or []
             if out:
-                params["out"] = out[0]
+                params["out"] = out[0]  # les sorties derivees gardent leur suffixe
+            if entry.get("input"):
+                params["input"] = entry["input"]
             steps.append({entry["step"]: params} if params else entry["step"])
         return {"steps": steps}
 

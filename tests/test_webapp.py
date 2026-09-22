@@ -347,3 +347,117 @@ def test_serving_a_plain_directory_is_refused(tmp_path):
         create_app(tmp_path / "pas_un_projet")
     app = create_app(tmp_path / "cree", create=True)
     assert app.state.project.path.name == "cree"
+
+
+# ──────────────────────── chaines types ────────────────────────────
+@pytest.fixture(scope="module")
+def foam_project(tmp_path_factory):
+    """Un projet dont le calque `volume` est la phase **solide**, cas normal."""
+    vol = ma.phantoms.voronoi_foam(
+        shape=(96,) * 3, n_cells=24, strut=3.0, min_seed_gap=18.0, seed=7
+    )
+    proj = Project.create(tmp_path_factory.mktemp("presets") / "p", volume=vol, phase="solid")
+    return proj, vol.meta["truth"]
+
+
+def _iou_against_voronoi(pred, truth):
+    out = []
+    for lab in np.asarray(truth["interior_cells"], dtype=int):
+        ref = truth["cell_labels"] == lab
+        if not ref.any():
+            continue
+        c, n = np.unique(pred[ref], return_counts=True)
+        keep = c > 0
+        if not keep.any():
+            out.append(0.0)
+            continue
+        best = int(c[keep][np.argmax(n[keep])])
+        out.append(int((ref & (pred == best)).sum()) / int((ref | (pred == best)).sum()))
+    return np.asarray(out)
+
+
+def test_presets_run_and_segment_correctly(foam_project):
+    """Chaque chaine type est rejouee, et celle des cellules est **verifiee**.
+
+    Sans ce test, une chaine peut enchainer les etapes dans le mauvais ordre et
+    rendre un resultat qui a l'air juste. C'est arrive : en donnant l'image des
+    marqueurs comme relief au lieu de la carte de distance, la segmentation
+    ressemblait a une mosaique de cellules et l'IoU tombait de 0,908 a 0,636.
+    """
+    import warnings as _w
+
+    from morphanalyzer.webapp.presets import build_presets
+
+    proj, truth = foam_project
+    runner = JobRunner(proj)
+    ran = []
+    for _ in range(2):  # deux passes : certaines chaines dependent des precedentes
+        for preset in build_presets(proj):
+            if not preset["available"] or preset["id"] in ran:
+                continue
+            with _w.catch_warnings():
+                _w.simplefilter("ignore")
+                job = runner.run_sync(preset["steps"])
+            assert job.status == "done", f"{preset['id']} : {job.error}"
+            ran.append(preset["id"])
+            proj._load_manifest()
+
+    assert set(ran) == {"granulo", "cellules", "plateau", "drainage"}
+    assert {"fluide", "distance", "ouverture", "marqueurs", "cellules"} <= set(proj.layers)
+    assert {"granulometrie", "morphometrie", "cols", "drainage_courbe"} <= set(proj.tables)
+
+    ious = _iou_against_voronoi(np.asarray(proj.layer("cellules")), truth)
+    assert np.median(ious) > 0.85, f"IoU median {np.median(ious):.3f} — la chaine est fausse"
+
+
+def test_the_watershed_relief_is_the_distance_map(foam_project):
+    """Le piege precis : le relief doit etre la distance, pas les marqueurs."""
+    from morphanalyzer.webapp.presets import build_presets
+
+    proj, _ = foam_project
+    cellules = next(p for p in build_presets(proj) if p["id"] == "cellules")
+    ws = next(s for s in cellules["steps"] if s["step"] == "watershed_cells")
+    assert ws["input"] == "distance"
+    assert ws["params"]["markers"] == "@marqueurs"
+
+
+def test_presets_follow_the_phase_of_the_project(tmp_path):
+    """Un projet dont le volume est deja le fluide ne doit pas changer de phase."""
+    from morphanalyzer.webapp.presets import build_presets
+
+    vol = ma.phantoms.voronoi_foam(shape=(32,) * 3, n_cells=4, strut=3.0, min_seed_gap=14.0, seed=0)
+    solide = Project.create(tmp_path / "s", volume=vol, phase="solid")
+    fluide = Project.create(
+        tmp_path / "f", volume=ma.Volume(vol.fluid, voxel_size=1.0), phase="fluid"
+    )
+    g_solide = next(p for p in build_presets(solide) if p["id"] == "granulo")
+    g_fluide = next(p for p in build_presets(fluide) if p["id"] == "granulo")
+    assert g_solide["steps"][0]["step"] == "complement"
+    assert g_fluide["steps"][0]["step"] == "distance_transform"
+    assert g_fluide["steps"][0]["input"] == "volume"
+
+
+def test_preset_route(served):
+    client, _ = served
+    presets = client.get("/api/presets").json()
+    assert {p["id"] for p in presets} == {"granulo", "cellules", "plateau", "drainage"}
+    assert all("steps" in p and "available" in p for p in presets)
+
+
+def test_step_input_is_replayable(tmp_path):
+    """`input` doit survivre a l'aller-retour historique -> YAML -> execution."""
+    from morphanalyzer.pipeline import run_from_config
+
+    vol = ma.phantoms.voronoi_foam(shape=(32,) * 3, n_cells=4, strut=3.0, min_seed_gap=14.0, seed=0)
+    proj = Project.create(tmp_path / "p", volume=vol, phase="solid")
+    JobRunner(proj).run_sync(
+        [
+            {"step": "complement", "params": {"out": "fluide"}, "input": "volume"},
+            {"step": "distance_transform", "params": {"out": "distance"}, "input": "fluide"},
+            {"step": "porosity", "params": {"out": "porosite"}, "input": "fluide"},
+        ]
+    )
+    config = proj.to_pipeline_config()
+    assert config["steps"][1]["distance_transform"]["input"] == "fluide"
+    ctx = run_from_config(config, np.asarray(proj.layer("volume")), project=proj)
+    assert 0.0 < ctx["porosite"] < 1.0

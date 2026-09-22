@@ -193,7 +193,7 @@ Le notebook `notebooks/tutoriel.ipynb` rejoue l'essentiel de ces mesures,
 figures comprises.
 
 ```bash
-pytest -q                                  # 269 tests
+pytest -q                                  # 276 tests
 python examples/shape_classification.py    # les chiffres de la classification
 python examples/full_chain.py              # la chaîne complète
 python examples/drainage_cortical.py       # tortuosité, drainage, os cortical

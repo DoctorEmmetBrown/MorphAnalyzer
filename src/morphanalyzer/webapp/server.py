@@ -115,6 +115,7 @@ def create_app(project_path: str | Path, *, read_only: bool = False, create: boo
             "path": str(project.path),
             "voxel_size": list(project.voxel_size),
             "unit": project.unit,
+            "phase": project.phase,
             "shape": list(project.shape) if project.shape else None,
             "read_only": read_only,
             "layers": [layer.to_dict() for layer in project.layers.values()],
@@ -223,6 +224,13 @@ def create_app(project_path: str | Path, *, read_only: bool = False, create: boo
                 }
             )
         return out
+
+    @app.get("/api/presets")
+    def api_presets() -> list[dict[str, Any]]:
+        from morphanalyzer.webapp.presets import build_presets
+
+        project._load_manifest()
+        return build_presets(project)
 
     @app.post("/api/run")
     def api_run(body: dict = Body(...)) -> dict[str, Any]:

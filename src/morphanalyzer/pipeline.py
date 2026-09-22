@@ -148,9 +148,27 @@ def _jsonable_default(v: Any) -> Any:
 
 @dataclass(slots=True)
 class Step:
+    """Une etape : son nom, ses reglages, ou elle prend son entree, ou elle range sa sortie.
+
+    `input` nomme le calque a passer en **premier argument**. Sans lui, l'etape
+    recoit le volume courant, c'est-a-dire la sortie de l'etape precedente — ce
+    qui est le comportement voulu pour une chaine lineaire, mais faux des qu'une
+    etape a besoin d'un resultat plus ancien. Le cas typique :
+
+        distance_transform  -> distance     (le volume courant devient la distance)
+        cell_markers        -> marqueurs    (il devient les marqueurs)
+        watershed_cells     input: distance <- il faut la distance comme relief,
+                                               pas les marqueurs
+
+    Sans `input`, cette derniere etape inonderait l'image des marqueurs. Elle
+    rendrait quand meme une partition plausible a l'oeil — et completement
+    fausse.
+    """
+
     name: str
     params: dict[str, Any] = field(default_factory=dict)
     out: str | None = None
+    input: str | None = None
 
 
 @dataclass(slots=True)
@@ -165,12 +183,14 @@ class Pipeline:
     steps: list[Step] = field(default_factory=list)
     verbose: bool = True
 
-    def step(self, name: str, *, out: str | None = None, **params) -> Pipeline:
+    def step(
+        self, name: str, *, out: str | None = None, input: str | None = None, **params
+    ) -> Pipeline:
         if name not in _REGISTRY:
             raise KeyError(
                 f"etape inconnue : {name!r}. Disponibles : {', '.join(available_steps()) or '(aucune)'}"
             )
-        self.steps.append(Step(name, params, out))
+        self.steps.append(Step(name, params, out, input))
         return self
 
     def run(self, volume, context: dict[str, Any] | None = None, *, project=None) -> dict[str, Any]:
@@ -183,6 +203,13 @@ class Pipeline:
         ctx["input"] = volume
         for s in self.steps:
             fn = _REGISTRY[s.name]
+            if s.input is not None:
+                if project is None:
+                    raise ValueError(
+                        f"l'etape {s.name!r} demande le calque {s.input!r} en entree, "
+                        "mais aucun projet n'est fourni : passer project=Project.open(...)"
+                    )
+                current = np.asarray(project.layer(s.input))
             t0 = time.perf_counter()
             res = fn(current, **resolve_params(s.params, project))
             dt = time.perf_counter() - t0
@@ -225,7 +252,7 @@ def run_from_config(config: dict | str | Path, volume, *, project=None) -> dict[
         elif isinstance(entry, dict) and len(entry) == 1:
             name, params = next(iter(entry.items()))
             params = dict(params or {})
-            pipe.step(name, out=params.pop("out", None), **params)
+            pipe.step(name, out=params.pop("out", None), input=params.pop("input", None), **params)
         else:
             raise ValueError(f"etape mal formee dans la configuration : {entry!r}")
     return pipe.run(volume, project=project)
@@ -256,6 +283,7 @@ def _register_builtin() -> None:
     register("dilate", filters.dilate)
     register("open_binary", filters.open_binary)
     register("close_binary", filters.close_binary)
+    register("complement", filters.complement)
     register("keep_largest_component", filters.keep_largest_component)
     register("remove_small_objects", filters.remove_small_objects)
     register("fill_holes", filters.fill_holes)

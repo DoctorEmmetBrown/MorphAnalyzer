@@ -121,3 +121,10 @@ def test_volume_carries_the_voxel_size(small):
     assert isinstance(vol, ma.Volume)
     assert vol.voxel_size == (7.46, 7.46, 7.46)
     assert vol.unit == "um"
+
+
+def test_a_project_carries_its_own_gitignore(small):
+    """Un projet se versionne : la recette et les tables, pas les gigaoctets."""
+    text = (small.path / ".gitignore").read_text()
+    assert "layers/" in text
+    assert "morphanalyzer run" in text  # la recette suffit a les reconstruire
