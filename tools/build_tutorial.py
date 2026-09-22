@@ -1950,7 +1950,8 @@ md(r"""
 - `docs/PORTING_MAP.md` — la carte de portage, fichier iMorph par fichier
 - `docs/validation.md` — la strategie de validation
 - `examples/full_chain.py`, `examples/drainage_cortical.py` — les memes chaines en script
-- `pytest -q` — 221 tests
+- `morphanalyzer serve mon_projet/` — la meme chose dans le navigateur
+- `pytest -q` — la suite complete de validation
 """)
 
 # ==========================================================================

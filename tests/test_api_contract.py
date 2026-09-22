@@ -28,6 +28,7 @@ IMPLEMENTED = {
         "pore_network",
     ],
     "phantoms": ["sphere", "sphere_pack", "voronoi_foam", "sinusoidal_tube", "cortical_tube"],
+    "project": ["Project", "Layer"],
     "tortuosity": [
         "point_tortuosity",
         "plane_tortuosity",
@@ -113,6 +114,13 @@ def test_planned_api_fails_with_its_phase(pkg):
             continue
         with pytest.raises(NotImplementedError, match="phase"):
             fn()
+
+
+def test_project_is_exposed_at_the_top_level():
+    """`Project` est du noyau : c'est le modele de donnees partage par la CLI,
+    les notebooks et l'interface."""
+    assert ma.Project is not None
+    assert "Project" in ma.__all__
 
 
 def test_version_is_exposed():

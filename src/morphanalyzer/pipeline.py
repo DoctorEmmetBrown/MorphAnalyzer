@@ -34,7 +34,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-__all__ = ["Pipeline", "register", "available_steps", "run_from_config"]
+__all__ = [
+    "Pipeline",
+    "register",
+    "available_steps",
+    "run_from_config",
+    "get_step",
+    "step_parameters",
+    "resolve_params",
+]
 
 _REGISTRY: dict[str, Callable[..., Any]] = {}
 
@@ -55,6 +63,81 @@ def register(name: str, fn: Callable[..., Any] | None = None):
 def available_steps() -> list[str]:
     """Noms des etapes disponibles, par ordre alphabetique."""
     return sorted(_REGISTRY)
+
+
+def resolve_params(params: dict[str, Any], project=None) -> dict[str, Any]:
+    """Remplace les valeurs `"@calque"` par le tableau correspondant du projet.
+
+    C'est la seule facon de passer un **tableau** en parametre depuis un fichier
+    de configuration ou une interface : `{"markers": "@marqueurs"}`. Sans
+    projet, une valeur `"@..."` est une erreur explicite plutot qu'une chaine
+    passee telle quelle a la fonction.
+    """
+    import numpy as np
+
+    out: dict[str, Any] = {}
+    for k, v in params.items():
+        if isinstance(v, str) and v.startswith("@"):
+            if project is None:
+                raise ValueError(
+                    f"le parametre {k}={v!r} designe un calque, mais aucun projet "
+                    "n'est fourni : passer project=Project.open(...)"
+                )
+            out[k] = np.asarray(project.layer(v[1:]))
+        else:
+            out[k] = v
+    return out
+
+
+def get_step(name: str) -> Callable[..., Any]:
+    """La fonction enregistree sous ce nom."""
+    try:
+        return _REGISTRY[name]
+    except KeyError:
+        raise KeyError(
+            f"etape inconnue : {name!r}. Disponibles : {', '.join(available_steps())}"
+        ) from None
+
+
+def step_parameters(name: str) -> list[dict[str, Any]]:
+    """Description des parametres d'une etape, pour une interface ou une doc.
+
+    Le premier parametre positionnel — le volume d'entree — est omis : c'est le
+    volume courant du pipeline, pas un reglage.
+    """
+    import inspect
+
+    fn = get_step(name)
+    try:
+        sig = inspect.signature(fn)
+    except (TypeError, ValueError):  # pragma: no cover - builtins
+        return []
+    out: list[dict[str, Any]] = []
+    for i, (pname, param) in enumerate(sig.parameters.items()):
+        if i == 0 and param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
+            continue
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            continue
+        ann = param.annotation
+        out.append(
+            {
+                "name": pname,
+                "default": None
+                if param.default is param.empty
+                else _jsonable_default(param.default),
+                "required": param.default is param.empty,
+                "annotation": "" if ann is param.empty else str(ann).replace("typing.", ""),
+            }
+        )
+    return out
+
+
+def _jsonable_default(v: Any) -> Any:
+    if isinstance(v, (str, int, float, bool)) or v is None:
+        return v
+    if isinstance(v, (list, tuple)):
+        return [_jsonable_default(x) for x in v]
+    return repr(v)
 
 
 @dataclass(slots=True)
@@ -84,7 +167,7 @@ class Pipeline:
         self.steps.append(Step(name, params, out))
         return self
 
-    def run(self, volume, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    def run(self, volume, context: dict[str, Any] | None = None, *, project=None) -> dict[str, Any]:
         import numpy as np
 
         from morphanalyzer.core import Volume
@@ -95,7 +178,7 @@ class Pipeline:
         for s in self.steps:
             fn = _REGISTRY[s.name]
             t0 = time.perf_counter()
-            res = fn(current, **s.params)
+            res = fn(current, **resolve_params(s.params, project))
             dt = time.perf_counter() - t0
             if isinstance(res, (Volume, np.ndarray)):
                 current = res
@@ -109,8 +192,13 @@ class Pipeline:
         return ctx
 
 
-def run_from_config(config: dict | str | Path, volume) -> dict[str, Any]:
-    """Execute un pipeline decrit par un dict ou un fichier YAML/JSON."""
+def run_from_config(config: dict | str | Path, volume, *, project=None) -> dict[str, Any]:
+    """Execute un pipeline decrit par un dict ou un fichier YAML/JSON.
+
+    `project` permet aux parametres `"@calque"` de se resoudre — c'est ce qui
+    rend rejouable en lot l'historique produit par l'interface
+    (`Project.to_pipeline_config`).
+    """
     if isinstance(config, (str, Path)):
         p = Path(config)
         text = p.read_text()
@@ -134,7 +222,7 @@ def run_from_config(config: dict | str | Path, volume) -> dict[str, Any]:
             pipe.step(name, out=params.pop("out", None), **params)
         else:
             raise ValueError(f"etape mal formee dans la configuration : {entry!r}")
-    return pipe.run(volume)
+    return pipe.run(volume, project=project)
 
 
 def _register_builtin() -> None:
@@ -172,11 +260,15 @@ def _register_builtin() -> None:
     register("representative_volume", metrics.representative_volume)
     register("distance_transform", distance.distance_transform)
     register("aperture_map", granulometry.aperture_map)
+    register("pore_size_distribution", granulometry.pore_size_distribution)
+    register("open_porosity", metrics.open_porosity)
+    register("phase_fraction", metrics.phase_fraction)
     register("skeletonize", skeleton.skeletonize)
     register("distance_ridge", skeleton.distance_ridge)
     register("shape_classification", shape.shape_classification)
     register("maximal_balls", granulometry.maximal_balls)
     register("cell_markers", granulometry.cell_markers)
+    register("watershed_cells", segmentation.watershed_cells)
     register("cell_morphometry", segmentation.cell_morphometry)
     register("throats", segmentation.throats)
     register("connectivity", segmentation.connectivity)

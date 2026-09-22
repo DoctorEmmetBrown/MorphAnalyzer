@@ -44,6 +44,7 @@ print(ma.metrics.specific_surface(bin_), "µm⁻¹")
 | [Réseau et drainage](guide/drainage.md) | Hazlett, Hilpert, percolation d'invasion, Young-Laplace | ✅ |
 | [Os cortical](guide/cortical.md) | profils angulaires et radiaux, connectivité empilée, Voronoï 2D | ✅ |
 | [Maillage](guide/maillage.md) | marching cubes, aire et volume, STL / OBJ / PLY, décimation | ✅ |
+| [Interface](guide/interface.md) | dossier de projet, slicer, courbes, lanceur de pipeline | ✅ |
 | Transfert radiatif | lancer de rayons, facteurs d'échange | ⛔ hors périmètre |
 
 Le transfert radiatif (phase 8) est écarté du portage à la demande. Son API reste

@@ -46,6 +46,7 @@ nav:
       - Drainage et réseau: guide/drainage.md
       - Os cortical: guide/cortical.md
       - Maillage et export: guide/maillage.md
+      - L'interface: guide/interface.md
   - Validation: validation.md
   - Portage depuis iMorph:
       - Carte de portage: PORTING_MAP.md

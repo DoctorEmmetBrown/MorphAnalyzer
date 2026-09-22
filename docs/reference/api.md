@@ -78,7 +78,14 @@ Documentation générée depuis les docstrings.
 ::: morphanalyzer.phantoms.foam
 ::: morphanalyzer.phantoms.bone
 
-## Pipeline et CLI
+## Projet et pipeline
 
+::: morphanalyzer.project
 ::: morphanalyzer.pipeline
 ::: morphanalyzer._deps
+
+## Interface web
+
+::: morphanalyzer.webapp.render
+::: morphanalyzer.webapp.jobs
+::: morphanalyzer.webapp.server

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>morphanalyzer</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='11' fill='none' stroke='%232a78d6' stroke-width='3'/><circle cx='16' cy='16' r='4' fill='%232a78d6'/></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="16" cy="16" r="4" fill="currentColor"/></svg>
+    <span>morphanalyzer</span>
+  </div>
+  <div class="project-id">
+    <strong id="project-name">…</strong>
+    <span id="project-meta" class="dim"></span>
+  </div>
+  <div class="spacer"></div>
+  <button id="theme-toggle" class="icon-btn" title="Thème clair / sombre" aria-label="Thème clair ou sombre">◐</button>
+</header>
+
+<main class="layout">
+
+  <!-- ────────────────────────── colonne gauche ───────────────────────── -->
+  <aside class="panel left">
+    <section class="block">
+      <h2>Calques <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">du fond vers le dessus</span></h2>
+      <ul id="layers" class="layers"></ul>
+      <p id="layers-empty" class="empty">Aucun calque. Lancez une étape pour en produire.</p>
+    </section>
+
+    <section class="block">
+      <h2>Pipeline
+        <button id="pipeline-replay" class="link-btn" title="Télécharger l'historique en YAML rejouable">exporter</button>
+      </h2>
+      <div class="field">
+        <label for="step-picker">Ajouter une étape</label>
+        <input id="step-search" type="search" placeholder="filtrer…" autocomplete="off">
+        <select id="step-picker" size="8"></select>
+        <p id="step-summary" class="dim small"></p>
+      </div>
+      <div id="step-params" class="params"></div>
+      <div class="row">
+        <button id="step-add" class="btn">Ajouter à la file</button>
+      </div>
+      <div class="row tight">
+        <span class="dim small">chaînes types</span>
+        <button class="chip" data-preset="granulo">granulométrie</button>
+        <button class="chip" data-preset="cellules">cellules &amp; cols</button>
+        <button class="chip" data-preset="drainage">drainage</button>
+      </div>
+      <ol id="queue" class="queue"></ol>
+      <div class="row">
+        <label class="inline" for="input-layer">Entrée</label>
+        <select id="input-layer"></select>
+      </div>
+      <div class="row">
+        <button id="run" class="btn primary" disabled>Exécuter</button>
+        <button id="queue-clear" class="btn ghost">Vider</button>
+      </div>
+      <div id="job" class="job" hidden>
+        <div class="progress"><div id="job-bar"></div></div>
+        <p id="job-status" class="small"></p>
+        <ol id="job-log" class="joblog"></ol>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ────────────────────────── centre : slicer ──────────────────────── -->
+  <section class="panel centre">
+    <div class="toolbar">
+      <div class="segmented" role="tablist" aria-label="Axe de coupe">
+        <button data-axis="0" class="on" role="tab">Z</button>
+        <button data-axis="1" role="tab">Y</button>
+        <button data-axis="2" role="tab">X</button>
+      </div>
+      <input id="slice" type="range" min="0" max="0" value="0">
+      <output id="slice-label" class="mono">0 / 0</output>
+      <div class="spacer"></div>
+      <button id="zoom-fit" class="btn ghost small">Ajuster</button>
+      <a id="snapshot" class="btn ghost small" download="coupe.png">PNG</a>
+    </div>
+
+    <div id="viewport" class="viewport" tabindex="0">
+      <div id="stage" class="stage"><img id="slice-img" alt="coupe du volume"></div>
+      <div id="crosshair" class="crosshair" hidden><span></span><span></span></div>
+      <div id="readout" class="readout" hidden></div>
+      <div id="viewport-empty" class="empty big">Ouvrez un projet contenant au moins un calque.</div>
+    </div>
+
+    <div class="statusbar">
+      <span id="cursor" class="mono dim">—</span>
+      <div class="spacer"></div>
+      <span id="scale-label" class="mono dim"></span>
+    </div>
+  </section>
+
+  <!-- ────────────────────────── colonne droite ───────────────────────── -->
+  <aside class="panel right">
+    <nav class="tabs" role="tablist">
+      <button data-tab="curves" class="on" role="tab">Courbes</button>
+      <button data-tab="history" role="tab">Historique</button>
+      <button data-tab="info" role="tab">Volume</button>
+    </nav>
+
+    <section id="tab-curves" class="tabpane">
+      <div class="field">
+        <label for="table-picker">Table</label>
+        <select id="table-picker"></select>
+      </div>
+      <div class="field two">
+        <div><label for="col-x">Abscisse</label><select id="col-x"></select></div>
+        <div><label for="col-y">Ordonnée(s)</label><select id="col-y" multiple size="4"></select></div>
+      </div>
+      <div class="row tight">
+        <button id="chart-kind-line" class="chip on">Courbe</button>
+        <button id="chart-kind-bar" class="chip">Barres</button>
+        <button id="chart-logx" class="chip">log X</button>
+        <button id="chart-reverse" class="chip">X décroissant</button>
+        <div class="spacer"></div>
+        <button id="chart-table" class="chip" title="Afficher les valeurs">table</button>
+        <a id="chart-csv" class="chip" download>CSV</a>
+      </div>
+      <div id="chart" class="chart"></div>
+      <div id="chart-values" class="values" hidden></div>
+      <p id="curves-empty" class="empty">Aucune table. Les étapes qui produisent un tableau (granulométrie, drainage, morphométrie…) en créent une.</p>
+    </section>
+
+    <section id="tab-history" class="tabpane" hidden>
+      <ol id="history" class="history"></ol>
+      <p id="history-empty" class="empty">Rien n'a encore été calculé dans ce projet.</p>
+    </section>
+
+    <section id="tab-info" class="tabpane" hidden>
+      <dl id="volume-info" class="kv"></dl>
+      <h3>Histogramme</h3>
+      <div class="field"><select id="hist-layer"></select></div>
+      <div id="histogram" class="chart small"></div>
+    </section>
+  </aside>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
