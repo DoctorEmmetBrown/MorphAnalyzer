@@ -120,6 +120,41 @@ PRESETS: list[dict[str, Any]] = [
         ],
     },
     {
+        "id": "poiseuille",
+        "label": "tortuosité de Poiseuille",
+        "summary": "Chemins choisis par un profil parabolique, de la face z = 0 "
+        "à la face opposée, comparés aux géodésiques.",
+        "requires": [],
+        # « Si le fluide est newtonien, lors d'un ecoulement laminaire le chemin
+        # pris par le fluide ne sera pas forcement le chemin topologiquement le
+        # plus court » (these, 3.2.3). On pousse le fluide, pas la matrice.
+        "targets": ("fluid",),
+        "steps": [
+            {"step": "distance_transform", "params": {"out": "distance"}, "input": PHASE},
+            # La carte d'ouverture est le R du profil `1 - (r/R)^2`. C'est
+            # l'etape couteuse : la calculer ici et la passer evite que
+            # `poiseuille_tortuosity` la refasse pour lui seul.
+            {"step": "aperture_map", "params": {"out": "ouverture", "n_radii": 24}, "input": PHASE},
+            {
+                "step": "plane_tortuosity",
+                "params": {"out": "tortuosite_plan", "face": 0},
+                "input": PHASE,
+            },
+            {
+                "step": "poiseuille_tortuosity",
+                "params": {
+                    "out": "poiseuille",
+                    "face": 0,
+                    "variant": "physical",
+                    "distance": "@distance",
+                    "aperture": "@ouverture",
+                    "n_paths": 16,
+                },
+                "input": PHASE,
+            },
+        ],
+    },
+    {
         "id": "drainage",
         "label": "drainage",
         "summary": "Intrusion morphologique par la face z = 0 et courbe de rétention.",

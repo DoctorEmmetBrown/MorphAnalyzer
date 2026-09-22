@@ -110,9 +110,10 @@ Le panneau de gauche liste les 50 étapes enregistrées, groupées par module, a
 leurs paramètres introspectés depuis les signatures Python. On empile des étapes
 dans une file, on choisit le calque d'entrée, on exécute.
 
-Quatre **chaînes types** évitent de tout monter à la main : granulométrie
+Cinq **chaînes types** évitent de tout monter à la main : granulométrie
 (carte d'ouverture, distribution de taille, table des boules maximales et leur
-image d'identifiants), cellules & cols, squelette de Plateau, drainage. Elles sont servies par
+image d'identifiants), cellules & cols, squelette de Plateau, drainage,
+tortuosité de Poiseuille. Elles sont servies par
 `/api/presets`, donc définies **une seule fois**, côté serveur — et la suite de
 tests les rejoue contre la vérité terrain d'un fantôme. Une chaîne qui ne vit
 que dans le JavaScript de l'interface n'est vérifiée par personne.

@@ -130,6 +130,7 @@ def create_app(project_path: str | Path, *, read_only: bool = False, create: boo
             "read_only": read_only,
             "layers": [layer.to_dict() for layer in project.layers.values()],
             "tables": list(project.tables.values()),
+            "values": list(project.values.values()),
             "history": project.history,
             "ramps": sorted(R.RAMPS),
             "nodata_color": R.NODATA_COLOR,

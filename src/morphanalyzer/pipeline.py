@@ -313,6 +313,7 @@ def _register_builtin() -> None:
     register("point_tortuosity", tortuosity.point_tortuosity)
     register("plane_tortuosity", tortuosity.plane_tortuosity)
     register("directional_tortuosity", tortuosity.directional_tortuosity)
+    register("poiseuille_speed", tortuosity.poiseuille_speed)
     register("poiseuille_tortuosity", tortuosity.poiseuille_tortuosity)
     register("surface_mesh", mesh.surface_mesh)
     register("save_mesh", mesh.save_mesh)

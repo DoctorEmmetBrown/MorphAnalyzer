@@ -361,6 +361,25 @@ class Project:
             raise KeyError(f"table inconnue : {name!r}. Disponibles : {list(self.tables)}")
         return pd.read_csv(self.path / info["file"])
 
+    # -- mesures -----------------------------------------------------------
+    @property
+    def values(self) -> dict[str, Any]:
+        """Les scalaires mesures : porosite, tortuosite, surface specifique...
+
+        Un nombre est souvent le resultat principal — une tortuosite de plan ne
+        produit pas d'image, elle produit une mesure. Avant, ces nombres ne
+        vivaient que dans le journal, en texte, et disparaissaient au
+        rechargement de la page.
+        """
+        return dict(self._manifest.get("values", {}))
+
+    def add_value(self, name: str, value: Any, *, step: str | None = None) -> dict[str, Any]:
+        """Range une mesure scalaire dans le manifeste."""
+        info = {"name": name, "value": _jsonable(value), "step": step, "created": _now()}
+        self._manifest.setdefault("values", {})[name] = info
+        self.save()
+        return info
+
     # -- historique --------------------------------------------------------
     def log_step(
         self,

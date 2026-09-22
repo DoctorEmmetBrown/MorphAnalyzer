@@ -168,9 +168,122 @@ def test_poiseuille_paths_stay_away_from_the_walls(foam_struts):
     ne dirait rien.
     """
     fluid = ~foam_struts.solid
-    res = ma.tortuosity.poiseuille_tortuosity(fluid, 0, variant="physical", n_paths=8)
-    assert res["mean_wall_distance_poiseuille"] > 1.5 * res["mean_wall_distance_geometric"]
-    assert res["tortuosity"] >= res["geometric_tortuosity"] * 0.98
+    # L'effet ne depend pas du choix des points d'arrivee. Mesure sur cette
+    # mousse : x1,74 et x1,64 en « fastest » (8 et 16 chemins), x1,43 et x1,54
+    # en « spread ». Le seuil est pose sous le minimum observe.
+    for ends in ("spread", "fastest"):
+        res = ma.tortuosity.poiseuille_tortuosity(
+            fluid, 0, variant="physical", n_paths=8, ends=ends
+        )
+        ecart = res["mean_wall_distance_poiseuille"] / res["mean_wall_distance_geometric"]
+        assert ecart > 1.35, f"ends={ends} : x{ecart:.2f}"
+        assert res["tortuosity"] >= res["geometric_tortuosity"] * 0.98
+
+
+def test_the_fastest_arrivals_are_a_biased_sample():
+    """Le piege du temoin apparie : les arrivees les plus rapides sont les plus droites.
+
+    En prenant les `n` voxels atteints le plus tot, on tombe au bout des canaux
+    les plus directs : la tortuosite geodesique qu'on leur associe vaut 1,000
+    dans a peu pres n'importe quel milieu ouvert, et ne decrit plus le milieu.
+    D'ou le defaut `ends="spread"`, qui repartit les arrivees sur la section.
+
+    La tortuosite du milieu, elle, reste celle de `plane_tortuosity`, qui moyenne
+    sur toute la face d'arrivee.
+    """
+    foam = ma.phantoms.voronoi_foam(
+        shape=(128,) * 3, n_cells=64, strut=6.0, min_seed_gap=13.0, seed=3
+    )
+    fluid = ~foam.solid
+    rapide = ma.tortuosity.poiseuille_tortuosity(fluid, 0, n_paths=16, ends="fastest")
+    etale = ma.tortuosity.poiseuille_tortuosity(fluid, 0, n_paths=16, ends="spread")
+    plan = ma.tortuosity.plane_tortuosity(fluid, 0)
+
+    assert rapide["geometric_tortuosity"] == pytest.approx(1.0, abs=1e-3)
+    assert etale["geometric_tortuosity"] > rapide["geometric_tortuosity"]
+    assert plan.value > 1.0
+    # les arrivees etalees couvrent la section : leurs chemins sont plus varies
+    assert etale["std"] > rapide["std"]
+
+    with pytest.raises(ValueError, match="ends doit valoir"):
+        ma.tortuosity.poiseuille_tortuosity(fluid, 0, ends="au hasard")
+
+
+def test_a_straight_tube_has_tortuosity_one_exactly():
+    """Le controle qui manquait, et qui a revele un vrai biais.
+
+    Dans un tube droit la tortuosite geometrique vaut 1 par construction. Elle
+    valait 1,17 : la descente de gradient choisissait le voisin de plus petit
+    `T`, sans regarder la longueur du pas. Le front etant quasi plan, un pas
+    diagonal (longueur sqrt(3)) descend autant qu'un pas axial (longueur 1), et
+    le chemin zigzaguait pour rien. Le critere est maintenant la **pente**,
+    `(T - T_voisin) / longueur du pas`.
+    """
+    vol = ma.phantoms.straight_tube(shape=(64, 32, 32), radius=8.0, axis=0)
+    fluid = ~vol.solid
+    res = ma.tortuosity.poiseuille_tortuosity(fluid, 0, n_paths=8)
+    assert res["geometric_tortuosity"] == pytest.approx(1.0, abs=1e-6)
+    # le chemin de Poiseuille, lui, est legerement plus long : il rejoint l'axe
+    assert 1.0 < res["tortuosity"] < 1.15
+
+
+def test_a_path_is_never_longer_than_its_travel_time():
+    """La longueur d'un chemin tracé doit valoir le temps de parcours, pas plus.
+
+    A vitesse unite, le temps d'arrivee **est** la longueur geodesique. Un
+    chemin extrait qui la depasse de 20 % n'est pas la geodesique.
+    """
+    foam = ma.phantoms.voronoi_foam(
+        shape=(56,) * 3, n_cells=10, strut=3.0, min_seed_gap=16.0, seed=1
+    )
+    fluid = ~foam.solid
+    T = np.asarray(ma.distance.geodesic_distance(fluid, 0))
+    arrivee = np.zeros(fluid.shape, dtype=bool)
+    arrivee[-1] = fluid[-1]
+    ok = arrivee & np.isfinite(T)
+    ends = np.argwhere(ok)[np.argsort(T[ok])[:12]]
+    for e in ends:
+        path = ma.tortuosity.shortest_path(T, e)
+        ell = float(np.linalg.norm(np.diff(path.astype(float), axis=0), axis=1).sum())
+        assert ell <= T[tuple(e)] * 1.02, f"chemin {100 * (ell / T[tuple(e)] - 1):.1f} % trop long"
+
+
+def test_poiseuille_gives_fields_paths_and_a_table():
+    """Le resultat doit etre exploitable, pas seulement affichable en une ligne.
+
+    Il rendait un `dict` de scalaires : rien a afficher, rien a tracer. Il porte
+    maintenant les champs et les chemins — tout en restant le meme `Mapping`,
+    pour ne casser aucun appel existant.
+    """
+    vol = ma.phantoms.straight_tube(shape=(48, 32, 32), radius=8.0, axis=0)
+    fluid = ~vol.solid
+    res = ma.tortuosity.poiseuille_tortuosity(fluid, 0, n_paths=6)
+
+    assert set(dict(res)) == {
+        "variant",
+        "separation",
+        "n_paths",
+        "tortuosity",
+        "std",
+        "mean_wall_distance_poiseuille",
+        "geometric_tortuosity",
+        "mean_wall_distance_geometric",
+    }
+    assert res["tortuosity"] == res.tortuosity  # les deux acces cohabitent
+
+    assert set(res.paths["metric"]) == {"poiseuille", "geometric"}
+    assert len(res.paths) == 12
+    assert (res.paths["tortuosity"] >= 1.0).all()
+    assert len(res.table) == 1
+
+    for champ in (res.speed, res.travel_time, res.path_mask, res.geometric_path_mask):
+        assert champ is not None and champ.shape == fluid.shape
+    assert int(res.path_mask.max()) == 6  # une etiquette par chemin
+    assert not fluid[res.path_mask > 0].__invert__().any(), "un chemin est sorti de la phase"
+
+    leger = ma.tortuosity.poiseuille_tortuosity(fluid, 0, n_paths=6, keep_fields=False)
+    assert leger.speed is None and leger.travel_time is None
+    assert leger["tortuosity"] == pytest.approx(res["tortuosity"])
 
 
 def test_poiseuille_speed_is_zero_at_the_wall_and_one_at_the_centre():

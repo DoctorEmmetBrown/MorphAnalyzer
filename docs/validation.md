@@ -100,6 +100,42 @@ prédites de moins de 15 % du volume médian :
 L'IoU médian des cellules intérieures est inchangé (0,907 → 0,908). Ce sont des
 faux germes qui disparaissent, pas des cellules.
 
+### Un chemin extrait n'est pas une géodésique
+
+Contrôle qui manquait : dans un tube droit, la tortuosité géodésique vaut 1 par
+construction. Elle valait **1,172**.
+
+La descente de gradient qui extrait les chemins choisissait le voisin de plus
+petit temps d'arrivée, sans regarder la longueur du pas. Dans un canal large le
+front est quasi plan : un pas diagonal (longueur √3) descend autant qu'un pas
+axial (longueur 1), rien ne pénalise le zigzag. Le critère est maintenant la
+pente, `(T − T_voisin) / ℓ`.
+
+| | avant | après |
+|---|---:|---:|
+| tube droit, τ géodésique | 1,172 | **1,0000** |
+| mousse 56³, longueur de chemin vs `T` | +20,8 % | **+0,0 %** |
+
+Le second contrôle est le bon : à vitesse unité, le temps d'arrivée **est** la
+longueur géodésique, donc un chemin correct doit la retrouver, pas la dépasser.
+
+### Les arrivées les plus rapides sont un échantillon biaisé
+
+`poiseuille_tortuosity` comparait ses deux familles de chemins sur les `n`
+voxels d'arrivée atteints le plus tôt. Ces voxels sont au bout des canaux les
+plus directs : la tortuosité géodésique qu'on leur associe vaut 1,000 dans à peu
+près n'importe quel milieu ouvert. Le défaut est maintenant `ends="spread"`, qui
+répartit les arrivées sur la section. Mousse 128³, 64 cellules :
+
+| `ends` | τ Poiseuille | τ géodésique | distance à la paroi |
+|---|---:|---:|---:|
+| `"fastest"` | 1,184 ± 0,072 | 1,000 | 8,07 contre 5,71 |
+| `"spread"` | 1,310 ± 0,101 | 1,025 | 8,39 contre 5,11 |
+| `plane_tortuosity` | — | 1,047 | — |
+
+L'effet mesuré par la thèse — le fluide passe plus loin des parois — ne dépend
+pas de ce choix : ×1,43 à ×1,74 selon la mousse et le nombre de chemins.
+
 ### Une granulométrie, ou deux ?
 
 iMorph n'avait **qu'un** calcul de granulométrie, et il donnait du même coup les

@@ -503,7 +503,7 @@ def test_presets_run_and_segment_correctly(foam_project):
             ran.append(preset["id"])
             proj._load_manifest()
 
-    assert set(ran) == {"granulo", "cellules", "plateau", "drainage"}
+    assert set(ran) == {"granulo", "cellules", "plateau", "drainage", "poiseuille"}
     assert {
         "fluide",
         "distance_fluide",
@@ -565,6 +565,7 @@ def test_presets_that_have_no_meaning_on_the_solid_are_not_offered(foam_project)
         "cellules",
         "plateau",
         "drainage",
+        "poiseuille",
     }
     with pytest.raises(ValueError, match="phase inconnue"):
         build_presets(proj, "gaz")
@@ -584,6 +585,47 @@ def test_the_plateau_skeleton_lives_in_the_solid(tmp_path):
     assert plateau["steps"][0]["params"]["out"] == "solide"
     assert plateau["steps"][1]["input"] == "solide"
     assert plateau["steps"][1]["params"]["cells"] == "@cellules_fluide"
+
+
+def test_the_poiseuille_chain_leaves_something_to_look_at(foam_project):
+    """Une tortuosite de Poiseuille doit rendre des calques, pas un seul nombre.
+
+    Elle rendait un `dict` que le journal ecrasait en texte : rien a afficher,
+    rien a tracer. La chaine produit maintenant les temps d'arrivee, le champ de
+    vitesse, les deux familles de chemins et le tableau par chemin.
+    """
+    import warnings as _w
+
+    from morphanalyzer.webapp.presets import build_presets
+
+    proj, _ = foam_project
+    preset = next(p for p in build_presets(proj, "fluid") if p["id"] == "poiseuille")
+    # la carte d'ouverture est calculee une fois et passee, pas refaite
+    dernier = preset["steps"][-1]
+    assert dernier["params"]["aperture"] == "@ouverture_fluide"
+    assert dernier["params"]["distance"] == "@distance_fluide"
+
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        job = JobRunner(proj).run_sync(preset["steps"])
+    assert job.status == "done", job.error
+    proj._load_manifest()
+
+    attendus = {
+        "poiseuille_fluide_temps",
+        "poiseuille_fluide_vitesse",
+        "poiseuille_fluide_trajets",
+        "poiseuille_fluide_trajets_geo",
+        "tortuosite_plan_fluide_temps",
+    }
+    assert attendus <= set(proj.layers)
+    assert {"poiseuille_fluide_resume", "poiseuille_fluide_chemins"} <= set(proj.tables)
+
+    chemins = proj.table("poiseuille_fluide_chemins")
+    assert set(chemins["metric"]) == {"poiseuille", "geometric"}
+    # l'effet mesure par la these : le fluide passe plus loin des parois
+    moyen = chemins.groupby("metric")["mean_wall_distance"].mean()
+    assert moyen["poiseuille"] > moyen["geometric"]
 
 
 def test_the_watershed_relief_is_the_distance_map(foam_project):
@@ -618,7 +660,13 @@ def test_presets_follow_the_phase_of_the_project(tmp_path):
 def test_preset_route(served):
     client, _ = served
     presets = client.get("/api/presets").json()
-    assert {p["id"] for p in presets} == {"granulo", "cellules", "plateau", "drainage"}
+    assert {p["id"] for p in presets} == {
+        "granulo",
+        "cellules",
+        "plateau",
+        "drainage",
+        "poiseuille",
+    }
     assert all("steps" in p and "available" in p for p in presets)
     assert all(p["phase"] == "fluide" for p in presets)
 

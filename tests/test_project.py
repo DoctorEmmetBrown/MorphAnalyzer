@@ -128,3 +128,19 @@ def test_a_project_carries_its_own_gitignore(small):
     text = (small.path / ".gitignore").read_text()
     assert "layers/" in text
     assert "morphanalyzer run" in text  # la recette suffit a les reconstruire
+
+
+def test_measurements_survive_a_reload(small):
+    """Une mesure est souvent le resultat principal : elle doit rester.
+
+    Une tortuosite de plan ne produit pas d'image, elle produit un nombre. Ce
+    nombre ne vivait que dans le journal, en texte, et disparaissait au
+    rechargement.
+    """
+    small.add_value("tortuosite_plan", 1.2901, step="plane_tortuosity")
+    small.add_value("porosite", 0.732, step="porosity")
+
+    relu = Project.open(small.path)
+    assert set(relu.values) == {"tortuosite_plan", "porosite"}
+    assert relu.values["tortuosite_plan"]["value"] == pytest.approx(1.2901)
+    assert relu.values["porosite"]["step"] == "porosity"

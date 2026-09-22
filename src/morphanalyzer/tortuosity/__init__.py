@@ -14,6 +14,7 @@ longueurs : une tortuosite de 1,21 correspond a un chemin 10 % plus long.
 """
 
 from morphanalyzer.tortuosity.geodesic import (
+    PoiseuilleResult,
     TortuosityResult,
     directional_tortuosity,
     plane_tortuosity,
@@ -33,4 +34,5 @@ __all__ = [
     "graph_tortuosity",
     "shortest_path",
     "TortuosityResult",
+    "PoiseuilleResult",
 ]

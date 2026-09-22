@@ -731,6 +731,15 @@ function renderInfo(p) {
     `<dt>taille physique</dt><dd>${phys} ${p.unit}</dd>` +
     `<dt>calques</dt><dd>${p.layers.length}</dd>` +
     `<dt>tables</dt><dd>${p.tables.length}</dd>`;
+
+  // Les mesures scalaires — une tortuosite, une porosite — sont souvent le
+  // resultat principal. Elles ne vivaient que dans le journal, en texte.
+  const box = $("#measures");
+  const vals = p.values || [];
+  box.innerHTML = vals.length
+    ? vals.map((v) => `<dt title="${v.step || ""}">${v.name}</dt>` +
+                      `<dd class="mono">${round4(v.value)}</dd>`).join("")
+    : `<dt class="dim">aucune mesure</dt><dd class="dim">—</dd>`;
   if ($("#hist-layer").value) drawHistogram($("#hist-layer").value);
 }
 

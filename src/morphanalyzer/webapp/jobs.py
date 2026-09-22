@@ -210,6 +210,7 @@ class JobRunner:
                     produced.append(f"table « {name} » ({len(frame)} lignes)")
                 else:
                     job.results[name] = value
+                    self.project.add_value(name, value, step=step)
                     names.append(name)
                     produced.append(f"{name} = {value}")
             note = "; ".join(produced) or "aucune sortie"
@@ -279,6 +280,31 @@ def unpack(res: Any, out: str) -> list[tuple[str, str, Any]]:
             ("value", f"{out}_ecart_type", round(float(res.std), 5)),
             ("layer", f"{out}_temps", res.travel_time),
         ]
+    if cls == "PoiseuilleResult":
+        # Une tortuosite de Poiseuille n'est pas un scalaire : c'est une mesure,
+        # deux champs et une famille de chemins. Rendue comme un seul nombre,
+        # elle ne laissait rien a regarder — et le dictionnaire entier finissait
+        # ecrase en texte dans le journal.
+        out_list: list[tuple[str, str, Any]] = [
+            ("value", out, round(float(res.tortuosity), 5)),
+            ("value", f"{out}_ecart_type", round(float(res.std), 5)),
+            ("value", f"{out}_geometrique", round(float(res.geometric_tortuosity), 5)),
+            ("value", f"{out}_paroi", round(float(res.mean_wall_distance_poiseuille), 3)),
+            ("value", f"{out}_paroi_geo", round(float(res.mean_wall_distance_geometric), 3)),
+            ("table", f"{out}_resume", res.table),
+            ("table", f"{out}_chemins", res.paths),
+        ]
+        for nom, arr in (
+            # `_temps` fait ouvrir le calque avec la rampe `tortuosite` en
+            # 16 paliers : les isochrones du front de Poiseuille.
+            (f"{out}_temps", res.travel_time),
+            (f"{out}_vitesse", res.speed),
+            (f"{out}_trajets", res.path_mask),
+            (f"{out}_trajets_geo", res.geometric_path_mask),
+        ):
+            if arr is not None:
+                out_list.append(("layer", nom, arr))
+        return out_list
     if cls == "ConnectivityProfile":
         return [("table", out, res.table)]
     if cls == "SectorProfile":
