@@ -47,6 +47,7 @@ nav:
       - Os cortical: guide/cortical.md
       - Maillage et export: guide/maillage.md
       - L'interface: guide/interface.md
+      - Les rampes de couleur: guide/couleurs.md
   - Validation: validation.md
   - Portage depuis iMorph:
       - Carte de portage: PORTING_MAP.md

@@ -52,12 +52,22 @@ def _layer_views(project: Project, spec: dict[str, Any]) -> list[R.LayerView]:
                 vmin=_num(entry.get("vmin"), info.vmin),
                 vmax=_num(entry.get("vmax"), info.vmax),
                 nodata=_num(entry.get("nodata"), info.nodata),
+                bands=_int(entry.get("bands")),
+                nodata_color=entry.get("nodata_color") or None,
                 alpha=float(entry.get("alpha", 1.0)),
                 color=entry.get("color") or "#2a78d6",
                 visible=bool(entry.get("visible", True)),
             )
         )
     return views
+
+
+def _int(value):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
 
 
 def _num(value, fallback):
@@ -122,6 +132,7 @@ def create_app(project_path: str | Path, *, read_only: bool = False, create: boo
             "tables": list(project.tables.values()),
             "history": project.history,
             "ramps": sorted(R.RAMPS),
+            "nodata_color": R.NODATA_COLOR,
         }
 
     # -- une coupe ---------------------------------------------------------

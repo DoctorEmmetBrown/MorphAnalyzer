@@ -5,9 +5,12 @@ pese 4 Go. On envoie **une image par coupe affichee**, composee ici, ou le
 tableau est deja memmappe. Le cout est independant de la taille du volume, et
 l'interface marche aussi bien sur une machine de calcul distante.
 
-Les rampes de couleur suivent la meme regle que les figures du tutoriel : une
-**seule teinte** du clair au fonce pour un champ continu. Une rampe
-multi-teintes fabrique des frontieres qui n'existent pas dans les donnees.
+Les rampes de couleur suivent la meme regle que les figures du tutoriel : la
+**clarte** doit varier de facon monotone d'un bout a l'autre. Une rampe qui
+repart en arriere — l'arc-en-ciel — fabrique des frontieres qui n'existent pas
+dans les donnees. Les cinq rampes a teinte unique vont du clair au fonce ; les
+deux rampes perceptuelles (`tortuosite`, `fire`) tournent en teinte mais leur
+L* CIELAB croit strictement, ce qui est la condition qui compte.
 """
 
 from __future__ import annotations
@@ -17,7 +20,21 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["RAMPS", "colormap", "label_colors", "render_slice", "LayerView", "png_bytes"]
+__all__ = [
+    "RAMPS",
+    "NODATA_COLOR",
+    "colormap",
+    "label_colors",
+    "render_slice",
+    "LayerView",
+    "png_bytes",
+]
+
+#: Couleur des voxels hors domaine (temps infini, valeur manquante). Choisie
+#: pour etre a plus de 19 unites de dE00 de **tous** les paliers des deux
+#: rampes perceptuelles, en vision normale comme en deuteranopie et en
+#: protanopie : elle ne peut pas passer pour une valeur.
+NODATA_COLOR = "#ff00ff"
 
 #: Rampes sequentielles, une teinte chacune, du clair au fonce.
 RAMPS: dict[str, list[str]] = {
@@ -61,6 +78,52 @@ RAMPS: dict[str, list[str]] = {
         "#372b7d",
         "#241c54",
     ],
+    # Rampe perceptuelle a 16 paliers, construite en LCh : L* de 11 a 96 par pas
+    # reguliers, teinte de 282 deg (bleu nuit) a 100 deg (jaune). Pensee pour les
+    # champs monotones qu'on lit par leurs iso-valeurs — la carte de temps de
+    # parcours de la tortuosite en premier lieu. Mesures : L* strictement
+    # croissant (pas minimal 5,2), dE00 entre paliers voisins >= 4,9, >= 3,7 en
+    # deuteranopie, >= 3,2 en protanopie.
+    "tortuosite": [
+        "#001c49",
+        "#002956",
+        "#003862",
+        "#00466d",
+        "#005577",
+        "#00637f",
+        "#007487",
+        "#00848a",
+        "#00948b",
+        "#2ba388",
+        "#54b283",
+        "#70c27f",
+        "#8fd278",
+        "#b3e071",
+        "#daed6b",
+        "#fff767",
+    ],
+    # Thermique (corps noir) : L* de 3 a 99, teinte de 25 a 100 deg, chroma
+    # maximale au milieu et nulle aux deux bouts. dE00 entre paliers voisins
+    # >= 6,1 (>= 4,5 en deuteranopie, >= 3,9 en protanopie). Pour les champs a
+    # grande dynamique : carte d'ouverture, distance, temps de parcours.
+    "fire": [
+        "#140807",
+        "#301110",
+        "#4e1315",
+        "#6e1219",
+        "#8c151c",
+        "#a32c1f",
+        "#ba4222",
+        "#cf5823",
+        "#e07021",
+        "#ea8a1c",
+        "#f1a51b",
+        "#f5c021",
+        "#f7d259",
+        "#f9e18f",
+        "#fbefc3",
+        "#fefcf6",
+    ],
     "grey": [
         "#ffffff",
         "#e0e0dd",
@@ -80,13 +143,29 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
-def colormap(name: str = DEFAULT_RAMP, n: int = 256) -> np.ndarray:
-    """Rampe `(n, 3)` uint8, interpolee entre les paliers documentes."""
+def colormap(name: str = DEFAULT_RAMP, n: int = 256, bands: int | None = None) -> np.ndarray:
+    """Rampe `(n, 3)` uint8, interpolee entre les paliers documentes.
+
+    Avec `bands`, la rampe devient **escalier** : `bands` couleurs constantes par
+    morceaux, prises aux bouts et aux nœuds de la rampe continue. Les frontieres
+    tombent alors a des valeurs connues — `vmin + k (vmax - vmin) / bands` — et
+    l'image devient une carte d'iso-valeurs.
+
+    C'est la seule discretisation honnete : la frontiere est annoncee, elle n'est
+    pas un artefact de la rampe. Pour `tortuosite`, `bands=16` redonne exactement
+    les seize couleurs documentees, et les bandes se lisent comme les isochrones
+    d'un front — leur ecart a un plan **est** la tortuosite.
+    """
     if name not in RAMPS:
         raise ValueError(f"rampe inconnue : {name!r}. Disponibles : {sorted(RAMPS)}")
     anchors = np.array([_hex_to_rgb(h) for h in RAMPS[name]], dtype=float)
     x = np.linspace(0.0, 1.0, len(anchors))
-    xi = np.linspace(0.0, 1.0, n)
+    if bands is None or bands <= 0:
+        xi = np.linspace(0.0, 1.0, n)
+    else:
+        bands = int(min(bands, n))
+        levels = np.linspace(0.0, 1.0, bands)
+        xi = levels[np.minimum((np.arange(n) * bands) // n, bands - 1)]
     return np.stack([np.interp(xi, x, anchors[:, c]) for c in range(3)], axis=1).astype(np.uint8)
 
 
@@ -125,6 +204,11 @@ class LayerView:
     vmin: float | None = None
     vmax: float | None = None
     nodata: float | None = None
+    bands: int | None = None
+    #: Couleur des voxels non finis **autres que `nan`** : `inf` (dans le
+    #: domaine, jamais atteint) et la valeur sentinelle `nodata`. `nan` reste
+    #: transparent, car c'est le hors-domaine.
+    nodata_color: str | None = None
     alpha: float = 1.0
     color: str = "#2a78d6"
     visible: bool = True
@@ -167,11 +251,26 @@ def _to_rgba(sl: np.ndarray, view: LayerView) -> np.ndarray:
     hi = view.vmax if view.vmax is not None else (float(a[valid].max()) if valid.any() else 1.0)
     if hi <= lo:
         hi = lo + 1.0
-    t = np.clip((a - lo) / (hi - lo), 0.0, 1.0)
-    lut = colormap(view.ramp)
+    with np.errstate(invalid="ignore"):
+        t = np.clip((a - lo) / (hi - lo), 0.0, 1.0)
+    # NaN et inf ne survivent pas a une conversion en entier : les neutraliser
+    # ici evite un RuntimeWarning que l'interface remonterait comme un vrai
+    # avertissement de calcul.
+    t = np.where(valid, t, 0.0)
+    lut = colormap(view.ramp, bands=view.bands)
     idx = np.where(valid, (t * 255).astype(np.int32), 0)
     rgba[..., :3] = lut[np.clip(idx, 0, 255)]
     rgba[..., 3] = np.where(valid, 255, 0)
+    if view.nodata_color is not None:
+        # `nan` et `inf` ne disent pas la meme chose. `nan` est hors domaine —
+        # le solide — et reste transparent. `inf` est **dans** le domaine mais
+        # jamais atteint : cul-de-sac, porosite fermee. Le peindre est tout
+        # l'interet, car peint comme le solide il disparait, alors que c'est
+        # justement ce qu'on cherche sur une carte de temps de parcours.
+        paint = ~valid & ~np.isnan(a)
+        if paint.any():
+            rgba[..., :3][paint] = np.array(_hex_to_rgb(view.nodata_color), dtype=np.uint8)
+            rgba[..., 3][paint] = 255
     return rgba
 
 

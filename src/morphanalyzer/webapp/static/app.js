@@ -77,13 +77,18 @@ async function loadProject() {
   for (const layer of p.layers) {
     if (!S.views[layer.name]) {
       const first = S.layers.indexOf(layer.name) === 0;
+      // Une carte de temps de parcours se lit par ses isochrones : rampe
+      // perceptuelle, 16 paliers, et les voxels jamais atteints en magenta.
+      const isTime = /_temps$|tortuosite/.test(layer.name);
       S.views[layer.name] = {
         visible: first,                       // un seul calque au depart : on empile a la demande
-        ramp: layer.kind === "grey" ? "grey" : "blue",
+        ramp: isTime ? "tortuosite" : (layer.kind === "grey" ? "grey" : "blue"),
         color: "#2a78d6",
         alpha: first ? 1 : 0.7,
         vmin: layer.vmin, vmax: layer.vmax,
         kind: layer.kind,
+        bands: isTime ? 16 : 0,
+        showNodata: isTime,
       };
     }
   }
@@ -120,6 +125,8 @@ function fillSelect(sel, names, preferred) {
 /* ───────────────────────────── calques ────────────────────────────── */
 
 const RAMP_PREVIEW = {
+  tortuosite: "linear-gradient(90deg,#001c49,#00848a,#8fd278,#fff767)",
+  fire: "linear-gradient(90deg,#140807,#8c151c,#ea8a1c,#fefcf6)",
   blue: "linear-gradient(90deg,#f2f7fe,#6da7ec,#0d366b)",
   orange: "linear-gradient(90deg,#fdf4ef,#f29566,#6b280f)",
   teal: "linear-gradient(90deg,#eefaf5,#5ecda3,#08462f)",
@@ -197,6 +204,25 @@ function renderLayers() {
         })
       );
       body.appendChild(grid);
+
+      // Paliers : 0 = rampe continue, n = n bandes d'iso-valeurs, dont les
+      // frontieres tombent a min + k (max - min) / n.
+      const band = document.createElement("div");
+      band.className = "grid2";
+      band.innerHTML =
+        `<div><label title="0 = rampe continue ; n = n bandes d'iso-valeurs">paliers</label>` +
+        `<input type="number" min="0" max="32" step="1" value="${view.bands || 0}" data-k="bands"></div>` +
+        `<div><label title="peindre en magenta les voxels hors domaine : temps infini, valeur manquante">` +
+        `hors-domaine</label><input type="checkbox" ${view.showNodata ? "checked" : ""}></div>`;
+      band.querySelector('input[data-k="bands"]').addEventListener("change", (e) => {
+        view.bands = Math.max(0, Math.min(32, +e.target.value || 0));
+        refreshSlice();
+      });
+      band.querySelector('input[type="checkbox"]').addEventListener("change", (e) => {
+        view.showNodata = e.target.checked;
+        refreshSlice();
+      });
+      body.appendChild(band);
     }
 
     const alpha = document.createElement("div");
@@ -249,7 +275,11 @@ function buildSpec() {
     index: S.index,
     layers: S.layers
       .filter((n) => S.views[n]?.visible)
-      .map((n) => ({ name: n, ...S.views[n] })),
+      .map((n) => {
+        const v = S.views[n];
+        const nodata = S.project?.nodata_color || "#ff00ff";
+        return { name: n, ...v, nodata_color: v.showNodata ? nodata : null };
+      }),
   };
 }
 

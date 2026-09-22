@@ -261,7 +261,14 @@ def travel_time(
     Returns
     -------
     numpy.ndarray
-        `float32`, `+inf` hors du masque et sur les voxels non atteints.
+        `float32`. Deux valeurs non finies, et elles ne disent pas la meme
+        chose : `+inf` sur les voxels **du masque** que le front n'atteint
+        jamais — les culs-de-sac et la porosite fermee — et `nan` hors du
+        masque, qui n'est pas du domaine du tout.
+
+        La distinction compte des qu'on affiche la carte : un cul-de-sac peint
+        comme le solide devient invisible, alors que c'est precisement ce qu'on
+        cherche. `np.isfinite` continue de repondre « atteint », comme avant.
     """
     global _RUN
     m = as_array(mask).astype(bool, copy=False)
@@ -302,12 +309,13 @@ def travel_time(
         out = np.empty(m.shape, dtype=np.float32)
         _RUN(np.ascontiguousarray(f), m, src, spacing, out)
         out[out > 1.0e29] = np.inf
+        out[~m] = np.nan
     elif use == "skfmm":
         import skfmm
 
         phi = np.ma.MaskedArray(np.where(src, -1.0, 1.0), mask=~m)
         out = np.asarray(skfmm.travel_time(phi, speed=f, dx=tuple(spacing)), dtype=np.float32)
-        out = np.where(m, np.ma.filled(out, np.inf), np.inf).astype(np.float32)
+        out = np.where(m, np.ma.filled(out, np.inf), np.nan).astype(np.float32)
     else:
         raise ImportError(
             "le fast marching demande numba ou scikit-fmm. Installer avec :\n"

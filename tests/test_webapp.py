@@ -23,14 +23,95 @@ from morphanalyzer.webapp.server import create_app  # noqa: E402
 
 
 # ──────────────────────────── rendu ────────────────────────────────
-def test_ramps_are_single_hue_and_monotone():
-    """Une rampe sequentielle doit s'assombrir sans jamais repartir en arriere."""
+def test_ramps_are_monotone_in_lightness():
+    """La clarte doit varier dans un seul sens, sinon la rampe invente des reliefs.
+
+    C'est la propriete qui compte, pas l'unicite de la teinte : `tortuosite` et
+    `fire` tournent en teinte mais leur L* croit strictement, ce qui les rend
+    lisibles. Une rampe arc-en-ciel echouerait ici.
+    """
     for name in R.RAMPS:
         lut = R.colormap(name)
         lum = lut.astype(float) @ np.array([0.2126, 0.7152, 0.0722])
+        d = np.diff(lum)
         assert lut.shape == (256, 3)
-        assert np.all(np.diff(lum) <= 0.6), f"{name} n'est pas monotone"
-        assert lum[0] > lum[-1], f"{name} ne va pas du clair au fonce"
+        assert np.all(d <= 0.6) or np.all(d >= -0.6), f"{name} repart en arriere"
+        assert abs(lum[0] - lum[-1]) > 120, f"{name} n'utilise pas la plage de clarte"
+
+
+def test_banding_gives_exactly_the_documented_levels():
+    """`bands=16` doit rendre les seize couleurs documentees, ni plus ni moins.
+
+    Une rampe en escalier n'est honnete que si ses frontieres tombent a des
+    valeurs connues — `vmin + k (vmax - vmin) / 16`. C'est ce qui en fait une
+    carte d'iso-valeurs et non un artefact de quantification.
+    """
+    lut = R.colormap("tortuosite", bands=16)
+    seen = [tuple(c) for c in lut]
+    levels = sorted(set(seen), key=seen.index)
+    assert len(levels) == 16
+    assert levels == [R._hex_to_rgb(h) for h in R.RAMPS["tortuosite"]]
+    # et sans `bands`, la rampe reste continue
+    assert len({tuple(c) for c in R.colormap("tortuosite")}) > 100
+
+
+def test_the_unreachable_is_painted_but_the_solid_is_not():
+    """`inf` et `nan` ne disent pas la meme chose, et ne doivent pas se ressembler.
+
+    Sur une carte de temps de parcours, `nan` est le solide — hors domaine — et
+    `inf` un cul-de-sac : dans le fluide, mais que le front n'atteint jamais.
+    Peindre les deux pareil rendrait invisible exactement ce qu'on cherche.
+    """
+    a = np.stack([np.linspace(0.0, 1.0, 8)] * 4)[None].astype(np.float32)
+    a[0, 0, 0] = np.inf
+    a[0, 1, 0] = np.nan
+
+    fond = "#f5f4f1"
+    cache = R.render_slice(
+        [R.LayerView(a, kind="scalar", ramp="tortuosite")], index=0, background=fond
+    )
+    # par defaut le fond transparait : rien ne distingue le cul-de-sac du solide
+    assert tuple(cache[0, 0, :3]) == R._hex_to_rgb(fond)
+    assert tuple(cache[1, 0, :3]) == R._hex_to_rgb(fond)
+
+    montre = R.render_slice(
+        [R.LayerView(a, kind="scalar", ramp="tortuosite", nodata_color=R.NODATA_COLOR)],
+        index=0,
+        background=fond,
+    )
+    attendu = R._hex_to_rgb(R.NODATA_COLOR)
+    assert tuple(montre[0, 0, :3]) == attendu  # inf : peint
+    assert tuple(montre[1, 0, :3]) == R._hex_to_rgb(fond)  # nan : toujours le fond
+
+
+def test_travel_time_separates_the_solid_from_the_dead_ends():
+    """`travel_time` doit rendre `nan` hors du masque et `inf` dans les impasses."""
+    pytest.importorskip("numba")
+    m = np.zeros((12, 12, 12), dtype=bool)
+    m[:, 4:8, 4:8] = True  # un canal traversant
+    m[3:6, 1:3, 1:3] = True  # une poche isolee
+    src = np.zeros_like(m)
+    src[0] = m[0]
+
+    t = np.asarray(ma.distance.travel_time(m, src))
+    assert np.isnan(t[~m]).all(), "hors du masque doit etre nan"
+    assert np.isinf(t[3:6, 1:3, 1:3]).all(), "une poche isolee doit etre inf"
+    assert np.isfinite(t[:, 4:8, 4:8]).all()
+    # et le compte des voxels atteints ne change pas
+    assert int(np.isfinite(t).sum()) == int(m[:, 4:8, 4:8].sum())
+
+
+def test_the_out_of_range_colour_cannot_pass_for_a_value():
+    """La couleur hors domaine doit etre loin de tous les paliers, CIELAB a l'appui."""
+    from skimage import color as skc
+
+    out = np.array(R._hex_to_rgb(R.NODATA_COLOR), dtype=float) / 255.0
+    lab_out = skc.rgb2lab(out[None, None, :])[0]
+    for name in ("tortuosite", "fire"):
+        ramp = np.array([R._hex_to_rgb(h) for h in R.RAMPS[name]], dtype=float) / 255.0
+        lab = skc.rgb2lab(ramp[None, :, :])[0]
+        worst = min(float(skc.deltaE_ciede2000(lab_out, lab[i : i + 1])[0]) for i in range(len(lab)))
+        assert worst > 19.0, f"{name} : dE00 minimal {worst:.1f}, trop proche d'un palier"
 
 
 def test_unknown_ramp_lists_the_others():
